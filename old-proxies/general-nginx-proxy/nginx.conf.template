@@ -1,0 +1,20 @@
+worker_processes auto;
+events {
+    worker_connections 1024;
+}
+
+# Include stream proxy configuration if it exists
+include /etc/nginx/nginx.stream.conf;
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    # This block is for the default server that rejects unknown hosts
+    ${DEFAULT_SERVER_BLOCK}
+
+    # This block will contain all your explicitly defined routes
+    ${DYNAMIC_SERVER_BLOCKS}
+}

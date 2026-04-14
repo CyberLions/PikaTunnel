@@ -1,0 +1,34 @@
+services:
+  proxy-manager:
+    build: .
+    ports:
+      - "80:80"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://proxy_manager:proxy_manager@db:5432/proxy_manager
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ENVIRONMENT: production
+      VPN_ENABLED: ${VPN_ENABLED:-false}
+      VPN_TYPE: ${VPN_TYPE:-pritunl}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: proxy_manager
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-proxy_manager}
+      POSTGRES_DB: proxy_manager
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proxy_manager"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
