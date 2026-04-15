@@ -171,15 +171,16 @@ class OIDCProviderUpdate(BaseModel):
 
 
 class OIDCProviderResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
+    id: str
     name: str
     issuer_url: str
     client_id: str
     scopes: str
     groups_claim: str
+    admin_group: str
     enabled: bool
+    source: str
+    read_only: bool
     created_at: datetime
     updated_at: datetime
 
@@ -189,6 +190,7 @@ class UserInfo(BaseModel):
     email: str | None = None
     name: str | None = None
     groups: list[str] = []
+    admin_group: str | None = None
 
 
 class PaginatedResponse(BaseModel):

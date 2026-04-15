@@ -56,7 +56,10 @@ export interface OIDCProvider {
   client_id: string;
   scopes: string;
   groups_claim: string;
+  admin_group: string;
   enabled: boolean;
+  source: string;
+  read_only: boolean;
   created_at: string;
   updated_at: string;
 }

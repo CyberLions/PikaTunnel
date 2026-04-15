@@ -10,16 +10,25 @@ from app.routers import routes, streams, vpn, auth, health, nginx, cluster
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+SCHEMA_BOOTSTRAP_LOCK = "pikatunnel_schema_bootstrap"
+
+
+async def ensure_database_schema() -> None:
+    async with engine.begin() as conn:
+        await conn.execute(text("SELECT 1"))
+        logger.info("Database connection verified")
+        # Multiple uvicorn workers run startup concurrently in production.
+        # Serialize metadata DDL so PostgreSQL enum/table creation cannot race.
+        await conn.execute(text("SELECT pg_advisory_xact_lock(hashtext(:lock_name))"), {"lock_name": SCHEMA_BOOTSTRAP_LOCK})
+        logger.info("Database schema lock acquired")
+        await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables ensured")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting pikatunnel (env=%s)", settings.ENVIRONMENT)
-    async with engine.begin() as conn:
-        await conn.execute(text("SELECT 1"))
-        logger.info("Database connection verified")
-        await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables ensured")
+    await ensure_database_schema()
     yield
     await engine.dispose()
 

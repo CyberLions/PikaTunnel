@@ -104,8 +104,10 @@ export default function Auth() {
 
   const columns = [
     { key: "name", header: "Name", render: (p: OIDCProvider) => <span className="font-semibold text-stone-100">{p.name}</span> },
+    { key: "source", header: "Source", render: (p: OIDCProvider) => <span className="text-xs text-stone-400">{p.source}</span> },
     { key: "issuer", header: "Issuer URL", render: (p: OIDCProvider) => <span className="text-xs text-stone-400 font-mono">{p.issuer_url}</span> },
     { key: "client", header: "Client ID", render: (p: OIDCProvider) => <code className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded-md">{p.client_id}</code> },
+    { key: "admin_group", header: "Admin Group", render: (p: OIDCProvider) => <span className="text-sm text-stone-300">{p.admin_group}</span> },
     { key: "scopes", header: "Scopes", render: (p: OIDCProvider) => <span className="text-stone-400 text-sm">{p.scopes}</span> },
     {
       key: "enabled",
@@ -117,8 +119,14 @@ export default function Auth() {
       header: "",
       render: (p: OIDCProvider) => (
         <div className="flex gap-2">
-          <button onClick={() => openEdit(p)} className="text-sm font-medium text-orange-400 hover:text-orange-300 transition-colors">Edit</button>
-          <button onClick={() => setConfirmDelete(p.id)} className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors">Delete</button>
+          {p.read_only ? (
+            <span className="text-sm text-stone-500">Managed by env</span>
+          ) : (
+            <>
+              <button onClick={() => openEdit(p)} className="text-sm font-medium text-orange-400 hover:text-orange-300 transition-colors">Edit</button>
+              <button onClick={() => setConfirmDelete(p.id)} className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors">Delete</button>
+            </>
+          )}
         </div>
       ),
     },
@@ -131,7 +139,7 @@ export default function Auth() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-stone-100">Authentication Providers</h1>
-          <p className="text-sm text-stone-500 mt-1">Configure OIDC providers for access control</p>
+          <p className="text-sm text-stone-500 mt-1">Configure OIDC providers for access control. Environment providers are read-only here.</p>
         </div>
         <button onClick={openCreate} className="btn-primary">Add Provider</button>
       </div>

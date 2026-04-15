@@ -80,6 +80,16 @@ pnpm dev
 docker compose up
 ```
 
+### OIDC Providers From Env
+
+You can preconfigure login providers without creating database rows by setting `AUTH_PROVIDERS` in `.env` or your container environment. The value is a JSON array.
+
+```bash
+AUTH_PROVIDERS=[{"id":"authentik","name":"Authentik","issuer_url":"https://auth.example.com/application/o/pikatunnel/","client_id":"pikatunnel","client_secret":"change-me","groups_claim":"groups","admin_group":"platform-admins","enabled":true}]
+```
+
+`admin_group` is optional per provider. If omitted, PikaTunnel falls back to the global `ADMIN_GROUP` value.
+
 ## Project Structure
 
 ```

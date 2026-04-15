@@ -1,4 +1,5 @@
 import pytest
+from app.config import AuthProviderSettings, settings
 from app.services.oidc import (
     create_access_token,
     decode_access_token,
@@ -75,6 +76,10 @@ class TestUserHasGroup:
         assert user_has_group(user, "devops") is False
         assert user_has_group(user, "") is True
 
+    def test_custom_admin_group_sees_everything(self):
+        user = {"groups": ["platform-admins"], "admin_group": "platform-admins"}
+        assert user_has_group(user, "network-team") is True
+
 
 class TestAuthEndpoints:
     async def test_me_with_token(self, client, admin_headers):
@@ -83,6 +88,7 @@ class TestAuthEndpoints:
         data = resp.json()
         assert data["sub"] == "test-admin"
         assert data["groups"] == ["admin"]
+        assert data["admin_group"] == "admin"
 
     async def test_me_without_token_returns_401(self, client):
         resp = await client.get("/api/v1/auth/me")
@@ -97,6 +103,32 @@ class TestAuthEndpoints:
         resp = await client.get("/api/v1/auth/providers")
         assert resp.status_code == 200
         assert resp.json() == []
+
+    async def test_providers_list_includes_env_config(self, client):
+        original = settings.AUTH_PROVIDERS
+        settings.AUTH_PROVIDERS = [
+            AuthProviderSettings(
+                id="authentik",
+                name="Authentik",
+                issuer_url="https://auth.example.com/application/o/pikatunnel/",
+                client_id="env-client",
+                client_secret="env-secret",
+                groups_claim="groups",
+                admin_group="platform-admins",
+            )
+        ]
+        try:
+            resp = await client.get("/api/v1/auth/providers")
+        finally:
+            settings.AUTH_PROVIDERS = original
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["id"] == "env:authentik"
+        assert data[0]["source"] == "environment"
+        assert data[0]["read_only"] is True
+        assert data[0]["admin_group"] == "platform-admins"
 
     async def test_create_provider_requires_admin(self, client, user_headers):
         resp = await client.post(
@@ -116,3 +148,5 @@ class TestAuthEndpoints:
         data = resp.json()
         assert data["name"] == "test"
         assert data["groups_claim"] == "groups"
+        assert data["admin_group"] == "admin"
+        assert data["read_only"] is False

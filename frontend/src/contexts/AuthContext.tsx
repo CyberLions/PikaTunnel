@@ -5,6 +5,7 @@ interface User {
   email: string | null;
   name: string | null;
   groups: string[];
+  admin_group: string | null;
 }
 
 interface AuthContextValue {
@@ -28,6 +29,7 @@ function decodeJwtPayload(token: string): User | null {
       email: payload.email || null,
       name: payload.name || null,
       groups: payload.groups || [],
+      admin_group: payload.admin_group || null,
     };
   } catch {
     return null;
@@ -90,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: data.email || null,
             name: data.name || null,
             groups: data.groups || [],
+            admin_group: data.admin_group || null,
           });
         }
       })
@@ -97,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [logout]);
 
-  const isAdmin = user?.groups.includes("admin") ?? false;
+  const isAdmin = user ? user.groups.includes(user.admin_group || "admin") : false;
 
   return (
     <AuthContext.Provider value={{ user, token, isAdmin, loading, login, logout }}>
