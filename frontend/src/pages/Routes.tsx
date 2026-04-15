@@ -131,6 +131,7 @@ export default function Routes() {
         k8s_proxy_read_timeout: form.k8s_proxy_read_timeout || null,
         k8s_proxy_send_timeout: form.k8s_proxy_send_timeout || null,
         k8s_proxy_connect_timeout: form.k8s_proxy_connect_timeout || null,
+        k8s_custom_annotations: null,
       };
       if (editing) {
         await updateRoute(editing.id, payload);

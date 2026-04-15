@@ -58,7 +58,7 @@ export default function VPN() {
       name: vpn.name,
       vpn_type: vpn.vpn_type,
       enabled: vpn.enabled,
-      ovpn_config: vpn.config_data?.ovpn_config || "",
+      ovpn_config: (vpn.config_data?.ovpn_config as string) || "",
     });
     setModalOpen(true);
   }
@@ -149,9 +149,9 @@ export default function VPN() {
                 </div>
                 <StatusBadge status={vpn.status} />
               </div>
-              {vpn.config_data?.ovpn_config && (
+              {typeof vpn.config_data?.ovpn_config === "string" && (
                 <p className="mb-3 text-xs text-stone-600 truncate font-mono">
-                  {vpn.config_data.ovpn_config.split("\n").find((l: string) => l.startsWith("remote ")) || "Profile loaded"}
+                  {vpn.config_data.ovpn_config.split("\n").find((l) => l.startsWith("remote ")) || "Profile loaded"}
                 </p>
               )}
               <div className="flex gap-2">
