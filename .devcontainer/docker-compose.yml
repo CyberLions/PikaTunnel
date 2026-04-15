@@ -2,10 +2,10 @@ services:
   app:
     image: mcr.microsoft.com/devcontainers/base:ubuntu-22.04
     volumes:
-      - ..:/workspaces/${LOCAL_WORKSPACE_FOLDER_BASENAME:-Proxies-and-tunnels}:cached
+      - ..:/workspaces/${LOCAL_WORKSPACE_FOLDER_BASENAME:-pikatunnel}:cached
     command: sleep infinity
     environment:
-      DATABASE_URL: postgresql+asyncpg://proxy_manager:proxy_manager@db:5432/proxy_manager
+      DATABASE_URL: postgresql+asyncpg://pikatunnel:pikatunnel@db:5432/pikatunnel
       ENVIRONMENT: development
     depends_on:
       db:
@@ -15,15 +15,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: proxy_manager
-      POSTGRES_PASSWORD: proxy_manager
-      POSTGRES_DB: proxy_manager
+      POSTGRES_USER: pikatunnel
+      POSTGRES_PASSWORD: pikatunnel
+      POSTGRES_DB: pikatunnel
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U proxy_manager"]
+      test: ["CMD-SHELL", "pg_isready -U pikatunnel"]
       interval: 5s
       timeout: 3s
       retries: 5

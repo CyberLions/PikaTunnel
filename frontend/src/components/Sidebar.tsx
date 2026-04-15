@@ -60,34 +60,43 @@ const links = [
 
 export default function Sidebar() {
   return (
-    <aside className="flex h-full w-64 flex-col border-r border-slate-700 bg-slate-800/50">
-      <div className="flex items-center gap-3 border-b border-slate-700 px-6 py-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-          <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" />
-          </svg>
+    <aside className="flex h-full w-60 flex-col bg-neutral-950/80 border-r border-stone-800/20">
+      <div className="flex items-center gap-3 px-5 py-4">
+        <img src="/logo.png" alt="PikaTunnel" className="h-10 w-10 rounded-xl" />
+        <div>
+          <span className="text-lg font-bold bg-gradient-to-r from-orange-400 to-orange-500 bg-clip-text text-transparent">
+            Pika
+          </span>
+          <span className="text-lg font-bold text-stone-200">Tunnel</span>
         </div>
-        <span className="text-lg font-bold text-slate-100">Proxy Manager</span>
       </div>
-      <nav className="flex-1 space-y-1 px-3 py-4">
+
+      <nav className="flex-1 space-y-0.5 px-3 py-3">
         {links.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}
             end={link.to === "/"}
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                 isActive
-                  ? "bg-blue-600/20 text-blue-400"
-                  : "text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
+                  ? "bg-orange-500/15 text-orange-400 shadow-sm shadow-orange-500/10"
+                  : "text-stone-400 hover:bg-stone-800/30 hover:text-stone-200"
               }`
             }
           >
-            {link.icon}
+            <span className="transition-transform duration-200 group-hover:scale-110">
+              {link.icon}
+            </span>
             {link.label}
           </NavLink>
         ))}
       </nav>
+
+      <div className="mx-3 mb-4 rounded-xl bg-gradient-to-br from-orange-500/10 to-orange-600/5 border border-orange-500/10 p-3">
+        <p className="text-xs font-medium text-orange-400">PikaTunnel v0.1.0</p>
+        <p className="text-xs text-stone-500 mt-0.5">Burrowing through the web</p>
+      </div>
     </aside>
   );
 }

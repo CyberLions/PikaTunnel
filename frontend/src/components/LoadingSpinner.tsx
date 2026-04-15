@@ -1,7 +1,8 @@
 export default function LoadingSpinner() {
   return (
-    <div className="flex items-center justify-center py-12">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-600 border-t-blue-500" />
+    <div className="flex flex-col items-center justify-center py-16 gap-3">
+      <img src="/logo.png" alt="Loading..." className="h-12 w-12 animate-bounce-slow rounded-xl" />
+      <p className="text-sm text-stone-500 animate-pulse">Burrowing...</p>
     </div>
   );
 }

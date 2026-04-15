@@ -10,7 +10,7 @@ from app.services import nginx_config
 router = APIRouter(prefix="/api/v1/routes", tags=["routes"])
 
 
-@router.get("/", response_model=dict)
+@router.get("", response_model=dict)
 async def list_routes(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -29,7 +29,7 @@ async def list_routes(
     return {"items": items, "total": total, "page": page, "per_page": per_page}
 
 
-@router.post("/", response_model=ProxyRouteResponse, status_code=201)
+@router.post("", response_model=ProxyRouteResponse, status_code=201)
 async def create_route(data: ProxyRouteCreate, db: AsyncSession = Depends(get_db)):
     route = ProxyRoute(**data.model_dump())
     db.add(route)

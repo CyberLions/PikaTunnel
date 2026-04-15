@@ -7,6 +7,7 @@ import Modal from "../components/Modal";
 import StatusBadge from "../components/StatusBadge";
 import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 type FormData = {
   name: string;
@@ -39,6 +40,7 @@ export default function Routes() {
   const [editing, setEditing] = useState<ProxyRoute | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -104,9 +106,9 @@ export default function Routes() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this route?")) return;
     await deleteRoute(id);
     await reloadNginx().catch(() => {});
+    setConfirmDelete(null);
     await load();
   }
 
@@ -117,11 +119,11 @@ export default function Routes() {
   }
 
   const columns = [
-    { key: "name", header: "Name", render: (r: ProxyRoute) => <span className="font-medium text-slate-100">{r.name}</span> },
-    { key: "host", header: "Host", render: (r: ProxyRoute) => r.host },
-    { key: "path", header: "Path", render: (r: ProxyRoute) => <code className="text-xs text-blue-400">{r.path}</code> },
-    { key: "dest", header: "Destination", render: (r: ProxyRoute) => `${r.destination}:${r.port}` },
-    { key: "ssl", header: "SSL", render: (r: ProxyRoute) => r.ssl_enabled ? <span className="text-green-400">Yes</span> : <span className="text-slate-500">No</span> },
+    { key: "name", header: "Name", render: (r: ProxyRoute) => <span className="font-semibold text-stone-100">{r.name}</span> },
+    { key: "host", header: "Host", render: (r: ProxyRoute) => <span className="text-stone-300">{r.host}</span> },
+    { key: "path", header: "Path", render: (r: ProxyRoute) => <code className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded-md">{r.path}</code> },
+    { key: "dest", header: "Destination", render: (r: ProxyRoute) => <span className="font-mono text-xs text-stone-400">{r.destination}:{r.port}</span> },
+    { key: "ssl", header: "SSL", render: (r: ProxyRoute) => r.ssl_enabled ? <span className="text-emerald-400 text-xs font-semibold">Yes</span> : <span className="text-stone-600 text-xs">No</span> },
     {
       key: "enabled",
       header: "Status",
@@ -136,8 +138,8 @@ export default function Routes() {
       header: "",
       render: (r: ProxyRoute) => (
         <div className="flex gap-2">
-          <button onClick={() => openEdit(r)} className="text-sm text-blue-400 hover:text-blue-300">Edit</button>
-          <button onClick={() => handleDelete(r.id)} className="text-sm text-red-400 hover:text-red-300">Delete</button>
+          <button onClick={() => openEdit(r)} className="text-sm font-medium text-orange-400 hover:text-orange-300 transition-colors">Edit</button>
+          <button onClick={() => setConfirmDelete(r.id)} className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors">Delete</button>
         </div>
       ),
     },
@@ -148,65 +150,78 @@ export default function Routes() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-100">HTTP Routes</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-stone-100">HTTP Routes</h1>
+          <p className="text-sm text-stone-500 mt-1">Manage your reverse proxy routes</p>
+        </div>
         <button onClick={openCreate} className="btn-primary">Add Route</button>
       </div>
 
       {routes.length === 0 ? (
-        <EmptyState title="No routes" description="Create your first HTTP proxy route." action={{ label: "Add Route", onClick: openCreate }} />
+        <EmptyState title="No routes yet" description="Create your first HTTP proxy route to get started." action={{ label: "Add Route", onClick: openCreate }} />
       ) : (
         <DataTable columns={columns} data={routes} keyField="id" />
       )}
 
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete Route"
+        message="Are you sure you want to delete this route? This action cannot be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Route" : "Add Route"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm text-slate-400">Name *</label>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Name</label>
             <input required className="input-field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm text-slate-400">Host *</label>
+              <label className="mb-1.5 block text-sm font-medium text-stone-300">Host</label>
               <input required className="input-field" placeholder="example.com" value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-400">Path</label>
+              <label className="mb-1.5 block text-sm font-medium text-stone-300">Path</label>
               <input className="input-field" value={form.path} onChange={(e) => setForm({ ...form, path: e.target.value })} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm text-slate-400">Destination *</label>
+              <label className="mb-1.5 block text-sm font-medium text-stone-300">Destination</label>
               <input required className="input-field" placeholder="127.0.0.1" value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-slate-400">Port *</label>
+              <label className="mb-1.5 block text-sm font-medium text-stone-300">Port</label>
               <input required type="number" className="input-field" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} />
             </div>
           </div>
           <div className="flex items-center gap-6">
-            <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" className="rounded border-slate-600" checked={form.ssl_enabled} onChange={(e) => setForm({ ...form, ssl_enabled: e.target.checked })} />
+            <label className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer">
+              <input type="checkbox" className="rounded border-stone-600 bg-neutral-900 text-orange-500 focus:ring-orange-500/50" checked={form.ssl_enabled} onChange={(e) => setForm({ ...form, ssl_enabled: e.target.checked })} />
               SSL Enabled
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" className="rounded border-slate-600" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
+            <label className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer">
+              <input type="checkbox" className="rounded border-stone-600 bg-neutral-900 text-orange-500 focus:ring-orange-500/50" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
               Enabled
             </label>
           </div>
           {form.ssl_enabled && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-sm text-slate-400">SSL Cert Path</label>
+                <label className="mb-1.5 block text-sm font-medium text-stone-300">SSL Cert Path</label>
                 <input className="input-field" value={form.ssl_cert_path} onChange={(e) => setForm({ ...form, ssl_cert_path: e.target.value })} />
               </div>
               <div>
-                <label className="mb-1 block text-sm text-slate-400">SSL Key Path</label>
+                <label className="mb-1.5 block text-sm font-medium text-stone-300">SSL Key Path</label>
                 <input className="input-field" value={form.ssl_key_path} onChange={(e) => setForm({ ...form, ssl_key_path: e.target.value })} />
               </div>
             </div>
           )}
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex justify-end gap-3 pt-3">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving..." : "Save"}</button>
           </div>

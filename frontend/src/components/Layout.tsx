@@ -3,14 +3,13 @@ import Sidebar from "./Sidebar";
 
 export default function Layout() {
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-900">
+    <div className="flex h-screen overflow-hidden bg-neutral-950">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center justify-between border-b border-slate-700 bg-slate-800/30 px-6">
-          <div />
+        <header className="flex h-12 items-center justify-end border-b border-stone-800/15 bg-neutral-950/50 backdrop-blur-sm px-6">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-400">Admin</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-slate-300">
+            <span className="text-sm text-stone-400">Admin</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-sm font-bold text-white shadow-lg shadow-orange-500/20">
               A
             </div>
           </div>

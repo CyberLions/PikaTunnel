@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://proxy_manager:proxy_manager@db:5432/proxy_manager"
+    DATABASE_URL: str = "postgresql+asyncpg://pikatunnel:pikatunnel@db:5432/pikatunnel"
     SECRET_KEY: str = ""
     ENVIRONMENT: str = "development"
     VPN_ENABLED: bool = False

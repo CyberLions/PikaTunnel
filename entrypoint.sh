@@ -5,7 +5,7 @@ log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
 }
 
-log "Starting Proxy Manager (env=$ENVIRONMENT)"
+log "Starting PikaTunnel (env=$ENVIRONMENT)"
 
 # Start nginx in background
 log "Starting nginx..."

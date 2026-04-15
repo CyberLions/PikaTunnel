@@ -1,5 +1,5 @@
 {
-  "name": "Proxy Manager",
+  "name": "PikaTunnel",
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
@@ -42,9 +42,9 @@
     }
   },
 
-  "forwardPorts": [3000, 8000, 5432],
+  "forwardPorts": [5174, 8000, 5432],
   "portsAttributes": {
-    "3000": { "label": "Frontend (Vite)", "onAutoForward": "notify" },
+    "5174": { "label": "Frontend (Vite)", "onAutoForward": "notify" },
     "8000": { "label": "Backend (FastAPI)", "onAutoForward": "notify" },
     "5432": { "label": "PostgreSQL", "onAutoForward": "silent" }
   },

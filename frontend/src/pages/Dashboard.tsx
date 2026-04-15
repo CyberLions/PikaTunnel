@@ -48,63 +48,78 @@ export default function Dashboard() {
   }, []);
 
   if (loading) return <LoadingSpinner />;
-  if (error) return <div className="text-red-400">{error}</div>;
+  if (error) return <div className="card text-red-400">{error}</div>;
   if (!data) return null;
 
   const cards = [
     {
       title: "HTTP Routes",
       value: data.routeCount,
-      sub: `${data.routeEnabled} enabled`,
-      color: "text-blue-400",
+      sub: `${data.routeEnabled} active`,
+      gradient: "from-orange-500/20 to-orange-600/5",
+      accent: "text-orange-400",
+      border: "border-orange-500/15",
     },
     {
       title: "Stream Routes",
       value: data.streamCount,
-      sub: `${data.streamEnabled} enabled`,
-      color: "text-purple-400",
+      sub: `${data.streamEnabled} active`,
+      gradient: "from-purple-500/20 to-purple-600/5",
+      accent: "text-purple-400",
+      border: "border-purple-500/15",
     },
     {
       title: "VPN Configs",
       value: data.vpnCount,
       sub: data.health?.vpn.status || "unknown",
-      color: "text-green-400",
+      gradient: "from-emerald-500/20 to-emerald-600/5",
+      accent: "text-emerald-400",
+      border: "border-emerald-500/15",
     },
     {
       title: "Nginx",
       value: data.health?.nginx.running ? "Running" : "Stopped",
       sub: data.health?.nginx.config_valid ? "Config valid" : "Config invalid",
-      color: data.health?.nginx.running ? "text-green-400" : "text-red-400",
+      gradient: data.health?.nginx.running ? "from-emerald-500/20 to-emerald-600/5" : "from-red-500/20 to-red-600/5",
+      accent: data.health?.nginx.running ? "text-emerald-400" : "text-red-400",
+      border: data.health?.nginx.running ? "border-emerald-500/15" : "border-red-500/15",
     },
   ];
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-slate-100">Dashboard</h1>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 flex items-center gap-4">
+        <img src="/logo.png" alt="" className="h-10 w-10 rounded-xl" />
+        <div>
+          <h1 className="text-2xl font-bold text-stone-100">Dashboard</h1>
+          <p className="text-sm text-stone-500">Your tunnels at a glance</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
-          <div key={card.title} className="card">
-            <p className="text-sm font-medium text-slate-400">{card.title}</p>
-            <p className={`mt-2 text-3xl font-bold ${card.color}`}>{card.value}</p>
-            <p className="mt-1 text-sm text-slate-500">{card.sub}</p>
+          <div key={card.title} className={`rounded-2xl border ${card.border} bg-gradient-to-br ${card.gradient} p-5 transition-all duration-200 hover:scale-[1.02]`}>
+            <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">{card.title}</p>
+            <p className={`mt-2 text-3xl font-bold ${card.accent}`}>{card.value}</p>
+            <p className="mt-1 text-sm text-stone-500">{card.sub}</p>
           </div>
         ))}
       </div>
 
       {data.health && (
         <div className="card mt-8">
-          <h2 className="mb-4 text-lg font-semibold text-slate-200">System Status</h2>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Database</span>
+          <h2 className="mb-5 text-lg font-bold text-stone-100">System Status</h2>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-xl bg-neutral-950/50 px-4 py-3">
+              <span className="text-sm font-medium text-stone-300">Database</span>
               <StatusBadge status={data.health.database ? "connected" : "error"} />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Nginx</span>
+            <div className="flex items-center justify-between rounded-xl bg-neutral-950/50 px-4 py-3">
+              <span className="text-sm font-medium text-stone-300">Nginx</span>
               <StatusBadge status={data.health.nginx.running ? "running" : "stopped"} />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">VPN</span>
+            <div className="flex items-center justify-between rounded-xl bg-neutral-950/50 px-4 py-3">
+              <span className="text-sm font-medium text-stone-300">VPN</span>
               <StatusBadge
                 status={
                   data.health.vpn.status === "connected"

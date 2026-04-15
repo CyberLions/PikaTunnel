@@ -1,8 +1,8 @@
 {
-  "name": "proxies-and-tunnels",
+  "name": "pikatunnel",
   "private": true,
   "scripts": {
-    "dev": "pnpm run --parallel /dev/",
+    "dev": "pnpm run dev:frontend & pnpm run dev:backend",
     "dev:frontend": "cd frontend && pnpm dev",
     "dev:backend": "cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
   }

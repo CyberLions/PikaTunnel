@@ -6,6 +6,7 @@ import Modal from "../components/Modal";
 import StatusBadge from "../components/StatusBadge";
 import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 type FormData = {
   name: string;
@@ -32,6 +33,7 @@ export default function Auth() {
   const [editing, setEditing] = useState<OIDCProvider | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -91,16 +93,16 @@ export default function Auth() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this OIDC provider?")) return;
     await deleteProvider(id);
+    setConfirmDelete(null);
     await load();
   }
 
   const columns = [
-    { key: "name", header: "Name", render: (p: OIDCProvider) => <span className="font-medium text-slate-100">{p.name}</span> },
-    { key: "issuer", header: "Issuer URL", render: (p: OIDCProvider) => <span className="text-xs text-slate-400">{p.issuer_url}</span> },
-    { key: "client", header: "Client ID", render: (p: OIDCProvider) => <code className="text-xs">{p.client_id}</code> },
-    { key: "scopes", header: "Scopes", render: (p: OIDCProvider) => p.scopes },
+    { key: "name", header: "Name", render: (p: OIDCProvider) => <span className="font-semibold text-stone-100">{p.name}</span> },
+    { key: "issuer", header: "Issuer URL", render: (p: OIDCProvider) => <span className="text-xs text-stone-400 font-mono">{p.issuer_url}</span> },
+    { key: "client", header: "Client ID", render: (p: OIDCProvider) => <code className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded-md">{p.client_id}</code> },
+    { key: "scopes", header: "Scopes", render: (p: OIDCProvider) => <span className="text-stone-400 text-sm">{p.scopes}</span> },
     {
       key: "enabled",
       header: "Status",
@@ -111,8 +113,8 @@ export default function Auth() {
       header: "",
       render: (p: OIDCProvider) => (
         <div className="flex gap-2">
-          <button onClick={() => openEdit(p)} className="text-sm text-blue-400 hover:text-blue-300">Edit</button>
-          <button onClick={() => handleDelete(p.id)} className="text-sm text-red-400 hover:text-red-300">Delete</button>
+          <button onClick={() => openEdit(p)} className="text-sm font-medium text-orange-400 hover:text-orange-300 transition-colors">Edit</button>
+          <button onClick={() => setConfirmDelete(p.id)} className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors">Delete</button>
         </div>
       ),
     },
@@ -123,32 +125,45 @@ export default function Auth() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-100">Authentication Providers</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-stone-100">Authentication Providers</h1>
+          <p className="text-sm text-stone-500 mt-1">Configure OIDC providers for access control</p>
+        </div>
         <button onClick={openCreate} className="btn-primary">Add Provider</button>
       </div>
 
       {providers.length === 0 ? (
-        <EmptyState title="No OIDC providers" description="Configure an OIDC provider for authentication." action={{ label: "Add Provider", onClick: openCreate }} />
+        <EmptyState title="No providers configured" description="Set up an OIDC provider for authentication." action={{ label: "Add Provider", onClick: openCreate }} />
       ) : (
         <DataTable columns={columns} data={providers} keyField="id" />
       )}
 
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete Provider"
+        message="Are you sure you want to delete this OIDC provider? Users authenticating through it will lose access."
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Provider" : "Add Provider"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm text-slate-400">Name *</label>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Name</label>
             <input required className="input-field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-400">Issuer URL *</label>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Issuer URL</label>
             <input required type="url" className="input-field" placeholder="https://accounts.google.com" value={form.issuer_url} onChange={(e) => setForm({ ...form, issuer_url: e.target.value })} />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-400">Client ID *</label>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Client ID</label>
             <input required className="input-field" value={form.client_id} onChange={(e) => setForm({ ...form, client_id: e.target.value })} />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-400">Client Secret {editing ? "(leave blank to keep)" : "*"}</label>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Client Secret {editing ? "(leave blank to keep)" : ""}</label>
             <input
               type="password"
               className="input-field"
@@ -158,14 +173,14 @@ export default function Auth() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-400">Scopes</label>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Scopes</label>
             <input className="input-field" value={form.scopes} onChange={(e) => setForm({ ...form, scopes: e.target.value })} />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" className="rounded border-slate-600" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
+          <label className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer">
+            <input type="checkbox" className="rounded border-stone-600 bg-neutral-900 text-orange-500 focus:ring-orange-500/50" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
             Enabled
           </label>
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex justify-end gap-3 pt-3">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving..." : "Save"}</button>
           </div>

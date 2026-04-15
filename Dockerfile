@@ -51,7 +51,7 @@ COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 RUN mkdir -p /etc/nginx/ssl && \
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
     -keyout /etc/nginx/ssl/default.key -out /etc/nginx/ssl/default.crt \
-    -subj "/CN=proxy-manager" && \
+    -subj "/CN=pikatunnel" && \
     mkdir -p /etc/nginx/proxy-routes && \
     touch /etc/nginx/nginx.stream.conf
 

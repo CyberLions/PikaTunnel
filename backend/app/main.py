@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting proxy-manager (env=%s)", settings.ENVIRONMENT)
+    logger.info("Starting pikatunnel (env=%s)", settings.ENVIRONMENT)
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
         logger.info("Database connection verified")
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
-app = FastAPI(title="Proxy Manager", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="PikaTunnel", version="0.1.0", lifespan=lifespan, redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,

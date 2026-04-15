@@ -10,7 +10,7 @@ from sqlalchemy import select
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
 
 
-@router.get("/", response_model=HealthResponse)
+@router.get("", response_model=HealthResponse)
 async def health_check(db: AsyncSession = Depends(get_db)):
     db_ok = True
     try:

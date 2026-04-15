@@ -14,22 +14,22 @@ interface Props<T> {
 
 export default function DataTable<T>({ columns, data, keyField }: Props<T>) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700">
+    <div className="overflow-x-auto rounded-2xl border border-stone-800/20 bg-neutral-900/50">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-slate-700 bg-slate-800/50">
+        <thead className="border-b border-stone-800/20">
           <tr>
             {columns.map((col) => (
-              <th key={col.key} className="px-4 py-3 font-medium text-slate-400">
+              <th key={col.key} className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wider text-stone-500">
                 {col.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-700/50">
+        <tbody className="divide-y divide-stone-800/10">
           {data.map((item) => (
-            <tr key={String(item[keyField])} className="bg-slate-800 hover:bg-slate-750 transition-colors">
+            <tr key={String(item[keyField])} className="transition-colors hover:bg-orange-500/[0.03]">
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-3 text-slate-300">
+                <td key={col.key} className="px-4 py-3.5 text-stone-300">
                   {col.render(item)}
                 </td>
               ))}
