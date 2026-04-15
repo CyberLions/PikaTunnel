@@ -13,8 +13,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     ENVIRONMENT=production
 
-# Install nginx and runtime dependencies
+# Install nginx, Apache, and runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    apache2 \
     nginx \
     libnginx-mod-stream \
     openssl \
@@ -40,12 +41,14 @@ RUN pip install --no-cache-dir . 2>/dev/null || pip install --no-cache-dir \
 # Copy backend code
 COPY backend/ .
 
-# Copy frontend build output
-COPY --from=frontend-build /build/dist /usr/share/nginx/html
+# Copy frontend build output for Apache
+COPY --from=frontend-build /build/dist /var/www/pikatunnel
+
+# Copy Apache config
+COPY apache/pikatunnel.conf /etc/apache2/sites-available/pikatunnel.conf
 
 # Copy nginx configs
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 
 # Generate default self-signed cert for fallback
 RUN mkdir -p /etc/nginx/ssl && \
@@ -53,15 +56,19 @@ RUN mkdir -p /etc/nginx/ssl && \
     -keyout /etc/nginx/ssl/default.key -out /etc/nginx/ssl/default.crt \
     -subj "/CN=pikatunnel" && \
     mkdir -p /etc/nginx/proxy-routes && \
-    touch /etc/nginx/nginx.stream.conf
+    touch /etc/nginx/nginx.stream.conf && \
+    a2dissite 000-default && \
+    a2ensite pikatunnel && \
+    a2enmod proxy proxy_http rewrite headers && \
+    sed -i 's/^Listen 80$/Listen 3000/' /etc/apache2/ports.conf
 
 # Copy entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 80
+EXPOSE 80 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost/api/v1/health || exit 1
+    CMD curl -f http://localhost:3000/api/v1/health || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -7,6 +7,9 @@ log() {
 
 log "Starting PikaTunnel (env=$ENVIRONMENT)"
 
+log "Starting apache..."
+apachectl start
+
 # Start nginx in background
 log "Starting nginx..."
 nginx

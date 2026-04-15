@@ -2,6 +2,7 @@ services:
   pikatunnel:
     build: .
     ports:
+      - "3000:3000"
       - "80:80"
     environment:
       DATABASE_URL: postgresql+asyncpg://pikatunnel:pikatunnel@db:5432/pikatunnel
