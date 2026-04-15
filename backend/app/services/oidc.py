@@ -30,6 +30,21 @@ def decode_access_token(token: str) -> dict | None:
         return None
 
 
+def extract_groups(userinfo: dict, groups_claim: str) -> list[str]:
+    """Extract groups from userinfo using dot-notation claim path."""
+    value = userinfo
+    for part in groups_claim.split("."):
+        if isinstance(value, dict):
+            value = value.get(part)
+        else:
+            return []
+    if isinstance(value, list):
+        return [str(g) for g in value]
+    if isinstance(value, str):
+        return [g.strip() for g in value.split(",") if g.strip()]
+    return []
+
+
 async def get_oidc_client(provider: OIDCProvider) -> AsyncOAuth2Client:
     return AsyncOAuth2Client(
         client_id=provider.client_id,
@@ -87,7 +102,7 @@ async def get_current_user(
 ) -> dict | None:
     if settings.ENVIRONMENT == "development":
         if not credentials:
-            return {"sub": "dev-user", "email": "dev@localhost", "name": "Development User"}
+            return {"sub": "dev-user", "email": "dev@localhost", "name": "Development User", "groups": ["admin"]}
 
     if not credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -103,3 +118,23 @@ def require_auth(user: dict | None = Depends(get_current_user)):
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     return user
+
+
+def require_admin(user: dict = Depends(get_current_user)):
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    groups = user.get("groups", [])
+    if settings.ADMIN_GROUP not in groups:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
+
+
+def user_has_group(user: dict, route_groups: str) -> bool:
+    """Check if user has access to a route based on its groups."""
+    user_groups = set(user.get("groups", []))
+    if settings.ADMIN_GROUP in user_groups:
+        return True
+    if not route_groups:
+        return True
+    route_group_set = {g.strip() for g in route_groups.split(",") if g.strip()}
+    return bool(user_groups & route_group_set)

@@ -14,6 +14,7 @@ type FormData = {
   client_id: string;
   client_secret: string;
   scopes: string;
+  groups_claim: string;
   enabled: boolean;
 };
 
@@ -23,6 +24,7 @@ const emptyForm: FormData = {
   client_id: "",
   client_secret: "",
   scopes: "openid profile email",
+  groups_claim: "groups",
   enabled: true,
 };
 
@@ -62,6 +64,7 @@ export default function Auth() {
       client_id: provider.client_id,
       client_secret: "",
       scopes: provider.scopes,
+      groups_claim: provider.groups_claim || "groups",
       enabled: provider.enabled,
     });
     setModalOpen(true);
@@ -77,6 +80,7 @@ export default function Auth() {
         client_id: form.client_id,
         client_secret: form.client_secret,
         scopes: form.scopes,
+        groups_claim: form.groups_claim,
         enabled: form.enabled,
       };
       if (editing) {
@@ -175,6 +179,10 @@ export default function Auth() {
           <div>
             <label className="mb-1.5 block text-sm font-medium text-stone-300">Scopes</label>
             <input className="input-field" value={form.scopes} onChange={(e) => setForm({ ...form, scopes: e.target.value })} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Groups Claim</label>
+            <input className="input-field" placeholder="groups (or realm_access.roles for Keycloak)" value={form.groups_claim} onChange={(e) => setForm({ ...form, groups_claim: e.target.value })} />
           </div>
           <label className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer">
             <input type="checkbox" className="rounded border-stone-600 bg-neutral-900 text-orange-500 focus:ring-orange-500/50" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />

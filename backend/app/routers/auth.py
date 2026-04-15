@@ -1,4 +1,5 @@
 import uuid
+from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -9,8 +10,10 @@ from app.schemas import OIDCProviderCreate, OIDCProviderUpdate, OIDCProviderResp
 from app.services.oidc import (
     get_authorization_url,
     exchange_code,
+    extract_groups,
     create_access_token,
     get_current_user,
+    require_admin,
 )
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -23,7 +26,7 @@ async def list_providers(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/providers", response_model=OIDCProviderResponse, status_code=201)
-async def create_provider(data: OIDCProviderCreate, db: AsyncSession = Depends(get_db)):
+async def create_provider(data: OIDCProviderCreate, user: dict = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     provider = OIDCProvider(**data.model_dump())
     db.add(provider)
     await db.commit()
@@ -32,7 +35,7 @@ async def create_provider(data: OIDCProviderCreate, db: AsyncSession = Depends(g
 
 
 @router.put("/providers/{provider_id}", response_model=OIDCProviderResponse)
-async def update_provider(provider_id: uuid.UUID, data: OIDCProviderUpdate, db: AsyncSession = Depends(get_db)):
+async def update_provider(provider_id: uuid.UUID, data: OIDCProviderUpdate, user: dict = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     provider = await db.get(OIDCProvider, provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
@@ -44,7 +47,7 @@ async def update_provider(provider_id: uuid.UUID, data: OIDCProviderUpdate, db: 
 
 
 @router.delete("/providers/{provider_id}", status_code=204)
-async def delete_provider(provider_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def delete_provider(provider_id: uuid.UUID, user: dict = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     provider = await db.get(OIDCProvider, provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
@@ -72,12 +75,18 @@ async def callback(code: str, request: Request, db: AsyncSession = Depends(get_d
     redirect_uri = str(request.url_for("callback"))
     userinfo = await exchange_code(provider, code, redirect_uri)
 
+    groups = extract_groups(userinfo, provider.groups_claim)
+
     token = create_access_token({
         "sub": userinfo.get("sub", ""),
         "email": userinfo.get("email"),
         "name": userinfo.get("name"),
+        "groups": groups,
     })
-    return {"access_token": token, "token_type": "bearer"}
+
+    # Redirect to frontend with token as query param
+    frontend_url = f"/?{urlencode({'token': token})}"
+    return RedirectResponse(frontend_url)
 
 
 @router.get("/me", response_model=UserInfo)
@@ -86,6 +95,7 @@ async def me(user: dict = Depends(get_current_user)):
         sub=user.get("sub", ""),
         email=user.get("email"),
         name=user.get("name"),
+        groups=user.get("groups", []),
     )
 
 

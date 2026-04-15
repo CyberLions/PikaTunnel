@@ -61,7 +61,9 @@ def _generate_http_config(routes: list[ProxyRoute]) -> str:
 
     dynamic_str = "\n\n".join(dynamic_blocks)
 
-    return f"""worker_processes auto;
+    return f"""load_module /usr/lib/nginx/modules/ngx_stream_module.so;
+
+worker_processes auto;
 events {{
     worker_connections 1024;
 }}
@@ -112,18 +114,28 @@ async def generate_and_write(db: AsyncSession) -> tuple[str, str]:
     http_config = _generate_http_config(proxy_routes)
     stream_config = _generate_stream_config(stream_routes)
 
-    Path(settings.NGINX_CONFIG_PATH).parent.mkdir(parents=True, exist_ok=True)
-    Path(settings.NGINX_CONFIG_PATH).write_text(http_config)
-    Path(settings.NGINX_STREAM_CONFIG_PATH).write_text(stream_config)
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            f"sudo tee {settings.NGINX_CONFIG_PATH} > /dev/null",
+            stdin=asyncio.subprocess.PIPE,
+        )
+        await proc.communicate(input=http_config.encode())
+        proc = await asyncio.create_subprocess_shell(
+            f"sudo tee {settings.NGINX_STREAM_CONFIG_PATH} > /dev/null",
+            stdin=asyncio.subprocess.PIPE,
+        )
+        await proc.communicate(input=stream_config.encode())
+        logger.info("Wrote nginx configs to disk")
+    except OSError as e:
+        logger.warning("Failed to write nginx configs: %s", e)
 
-    logger.info("Wrote nginx configs to disk")
     return http_config, stream_config
 
 
 async def reload_nginx() -> bool:
     try:
         proc = await asyncio.create_subprocess_exec(
-            "nginx", "-s", "reload",
+            "sudo", "nginx", "-s", "reload",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -147,7 +159,7 @@ async def generate_and_reload(db: AsyncSession) -> tuple[str, str]:
 async def get_nginx_status() -> dict:
     try:
         proc = await asyncio.create_subprocess_exec(
-            "nginx", "-t",
+            "sudo", "nginx", "-t",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

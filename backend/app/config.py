@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     NGINX_CONFIG_PATH: str = "/etc/nginx/nginx.conf"
     NGINX_STREAM_CONFIG_PATH: str = "/etc/nginx/nginx.stream.conf"
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    ADMIN_GROUP: str = "admin"
 
     model_config = {"env_prefix": "", "case_sensitive": True}
 

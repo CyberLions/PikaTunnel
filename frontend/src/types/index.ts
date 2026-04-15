@@ -9,6 +9,17 @@ export interface ProxyRoute {
   ssl_cert_path: string | null;
   ssl_key_path: string | null;
   enabled: boolean;
+  groups: string;
+  k8s_ingress_enabled: boolean;
+  k8s_cloudflare_proxied: boolean | null;
+  k8s_cert_manager_enabled: boolean;
+  k8s_cluster_issuer: string | null;
+  k8s_authentik_enabled: boolean;
+  k8s_proxy_body_size: string | null;
+  k8s_proxy_read_timeout: string | null;
+  k8s_proxy_send_timeout: string | null;
+  k8s_proxy_connect_timeout: string | null;
+  k8s_custom_annotations: Record<string, string> | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +33,7 @@ export interface StreamRoute {
   protocol: "tcp" | "udp";
   proxy_protocol: boolean;
   enabled: boolean;
+  groups: string;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +55,7 @@ export interface OIDCProvider {
   issuer_url: string;
   client_id: string;
   scopes: string;
+  groups_claim: string;
   enabled: boolean;
   created_at: string;
   updated_at: string;

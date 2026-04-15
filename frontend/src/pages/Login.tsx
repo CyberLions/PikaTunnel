@@ -1,11 +1,32 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { listProviders } from "../api/auth";
 import type { OIDCProvider } from "../types";
+import { useAuth } from "../contexts/AuthContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 
 export default function Login() {
   const [providers, setProviders] = useState<OIDCProvider[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user, login } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Handle token from OIDC callback redirect
+  useEffect(() => {
+    const token = searchParams.get("token");
+    if (token) {
+      login(token);
+      navigate("/", { replace: true });
+    }
+  }, [searchParams, login, navigate]);
+
+  // If already logged in, redirect to dashboard
+  useEffect(() => {
+    if (user && !searchParams.get("token")) {
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate, searchParams]);
 
   useEffect(() => {
     async function load() {

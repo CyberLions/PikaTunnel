@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, type FormEvent } from "react";
-import { listVPNs, createVPN, deleteVPN, connectVPN, disconnectVPN } from "../api/vpn";
+import { listVPNs, createVPN, updateVPN, deleteVPN, connectVPN, disconnectVPN } from "../api/vpn";
 import type { VPNConfig } from "../types";
 import Modal from "../components/Modal";
 import StatusBadge from "../components/StatusBadge";
@@ -12,20 +12,21 @@ type FormData = {
   name: string;
   vpn_type: string;
   enabled: boolean;
-  config_data: string;
+  ovpn_config: string;
 };
 
 const emptyForm: FormData = {
   name: "",
   vpn_type: "pritunl",
   enabled: true,
-  config_data: "{}",
+  ovpn_config: "",
 };
 
 export default function VPN() {
   const [vpns, setVpns] = useState<VPNConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<VPNConfig | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -46,7 +47,19 @@ export default function VPN() {
   }, []);
 
   function openCreate() {
+    setEditing(null);
     setForm(emptyForm);
+    setModalOpen(true);
+  }
+
+  function openEdit(vpn: VPNConfig) {
+    setEditing(vpn);
+    setForm({
+      name: vpn.name,
+      vpn_type: vpn.vpn_type,
+      enabled: vpn.enabled,
+      ovpn_config: vpn.config_data?.ovpn_config || "",
+    });
     setModalOpen(true);
   }
 
@@ -56,19 +69,17 @@ export default function VPN() {
     e.preventDefault();
     setSaving(true);
     try {
-      let configData: Record<string, unknown>;
-      try {
-        configData = JSON.parse(form.config_data);
-      } catch {
-        setToast({ message: "Invalid JSON in config data", type: "error" });
-        return;
-      }
-      await createVPN({
+      const payload = {
         name: form.name,
         vpn_type: form.vpn_type,
         enabled: form.enabled,
-        config_data: configData,
-      });
+        config_data: { ovpn_config: form.ovpn_config },
+      };
+      if (editing) {
+        await updateVPN(editing.id, payload);
+      } else {
+        await createVPN(payload);
+      }
       setModalOpen(false);
       await load();
     } finally {
@@ -102,6 +113,17 @@ export default function VPN() {
     await load();
   }
 
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm({ ...form, ovpn_config: reader.result as string });
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -127,6 +149,11 @@ export default function VPN() {
                 </div>
                 <StatusBadge status={vpn.status} />
               </div>
+              {vpn.config_data?.ovpn_config && (
+                <p className="mb-3 text-xs text-stone-600 truncate font-mono">
+                  {vpn.config_data.ovpn_config.split("\n").find((l: string) => l.startsWith("remote ")) || "Profile loaded"}
+                </p>
+              )}
               <div className="flex gap-2">
                 {vpn.status === "connected" ? (
                   <button
@@ -145,6 +172,7 @@ export default function VPN() {
                     {actionLoading === vpn.id ? "..." : "Connect"}
                   </button>
                 )}
+                <button onClick={() => openEdit(vpn)} className="btn-secondary text-sm">Edit</button>
                 <button onClick={() => setConfirmDelete(vpn.id)} className="btn-danger text-sm">Delete</button>
               </div>
             </div>
@@ -164,7 +192,7 @@ export default function VPN() {
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Add VPN Config">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit VPN Config" : "Add VPN Config"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-stone-300">Name</label>
@@ -183,13 +211,25 @@ export default function VPN() {
             Enabled
           </label>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-stone-300">Config Data (JSON)</label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-sm font-medium text-stone-300">OpenVPN Config</label>
+              <label className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer transition-colors">
+                Upload .ovpn
+                <input type="file" accept=".ovpn,.conf,.tar" className="hidden" onChange={handleFileUpload} />
+              </label>
+            </div>
             <textarea
-              rows={6}
-              className="input-field font-mono text-sm"
-              value={form.config_data}
-              onChange={(e) => setForm({ ...form, config_data: e.target.value })}
+              rows={10}
+              className="input-field font-mono text-xs leading-relaxed"
+              placeholder="Paste your .ovpn config here or upload a file..."
+              value={form.ovpn_config}
+              onChange={(e) => setForm({ ...form, ovpn_config: e.target.value })}
             />
+            {form.ovpn_config && (
+              <p className="mt-1 text-xs text-stone-600">
+                {form.ovpn_config.split("\n").length} lines
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-3 pt-3">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>

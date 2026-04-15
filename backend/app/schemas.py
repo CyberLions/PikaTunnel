@@ -14,6 +14,17 @@ class ProxyRouteCreate(BaseModel):
     ssl_cert_path: str | None = None
     ssl_key_path: str | None = None
     enabled: bool = True
+    groups: str = ""
+    k8s_ingress_enabled: bool = False
+    k8s_cloudflare_proxied: bool | None = None
+    k8s_cert_manager_enabled: bool = False
+    k8s_cluster_issuer: str | None = None
+    k8s_authentik_enabled: bool = False
+    k8s_proxy_body_size: str | None = None
+    k8s_proxy_read_timeout: str | None = None
+    k8s_proxy_send_timeout: str | None = None
+    k8s_proxy_connect_timeout: str | None = None
+    k8s_custom_annotations: dict | None = None
 
 
 class ProxyRouteUpdate(BaseModel):
@@ -26,6 +37,17 @@ class ProxyRouteUpdate(BaseModel):
     ssl_cert_path: str | None = None
     ssl_key_path: str | None = None
     enabled: bool | None = None
+    groups: str | None = None
+    k8s_ingress_enabled: bool | None = None
+    k8s_cloudflare_proxied: bool | None = None
+    k8s_cert_manager_enabled: bool | None = None
+    k8s_cluster_issuer: str | None = None
+    k8s_authentik_enabled: bool | None = None
+    k8s_proxy_body_size: str | None = None
+    k8s_proxy_read_timeout: str | None = None
+    k8s_proxy_send_timeout: str | None = None
+    k8s_proxy_connect_timeout: str | None = None
+    k8s_custom_annotations: dict | None = None
 
 
 class ProxyRouteResponse(BaseModel):
@@ -41,6 +63,17 @@ class ProxyRouteResponse(BaseModel):
     ssl_cert_path: str | None
     ssl_key_path: str | None
     enabled: bool
+    groups: str
+    k8s_ingress_enabled: bool
+    k8s_cloudflare_proxied: bool | None
+    k8s_cert_manager_enabled: bool
+    k8s_cluster_issuer: str | None
+    k8s_authentik_enabled: bool
+    k8s_proxy_body_size: str | None
+    k8s_proxy_read_timeout: str | None
+    k8s_proxy_send_timeout: str | None
+    k8s_proxy_connect_timeout: str | None
+    k8s_custom_annotations: dict | None
     created_at: datetime
     updated_at: datetime
 
@@ -53,6 +86,7 @@ class StreamRouteCreate(BaseModel):
     protocol: ProtocolType = ProtocolType.tcp
     proxy_protocol: bool = False
     enabled: bool = True
+    groups: str = ""
 
 
 class StreamRouteUpdate(BaseModel):
@@ -63,6 +97,7 @@ class StreamRouteUpdate(BaseModel):
     protocol: ProtocolType | None = None
     proxy_protocol: bool | None = None
     enabled: bool | None = None
+    groups: str | None = None
 
 
 class StreamRouteResponse(BaseModel):
@@ -76,6 +111,7 @@ class StreamRouteResponse(BaseModel):
     protocol: ProtocolType
     proxy_protocol: bool
     enabled: bool
+    groups: str
     created_at: datetime
     updated_at: datetime
 
@@ -120,6 +156,7 @@ class OIDCProviderCreate(BaseModel):
     client_id: str
     client_secret: str
     scopes: str = "openid profile email"
+    groups_claim: str = "groups"
     enabled: bool = True
 
 
@@ -129,6 +166,7 @@ class OIDCProviderUpdate(BaseModel):
     client_id: str | None = None
     client_secret: str | None = None
     scopes: str | None = None
+    groups_claim: str | None = None
     enabled: bool | None = None
 
 
@@ -140,6 +178,7 @@ class OIDCProviderResponse(BaseModel):
     issuer_url: str
     client_id: str
     scopes: str
+    groups_claim: str
     enabled: bool
     created_at: datetime
     updated_at: datetime
@@ -149,6 +188,7 @@ class UserInfo(BaseModel):
     sub: str
     email: str | None = None
     name: str | None = None
+    groups: list[str] = []
 
 
 class PaginatedResponse(BaseModel):
@@ -173,6 +213,43 @@ class HealthResponse(BaseModel):
     database: bool
     nginx: NginxHealthInfo
     vpn: VPNHealthInfo
+
+
+class ClusterSettingsUpdate(BaseModel):
+    k8s_api_url: str | None = None
+    k8s_token: str | None = None
+    k8s_ca_cert: str | None = None
+    k8s_namespace: str | None = None
+    k8s_in_cluster: bool | None = None
+    default_ingress_class: str | None = None
+    default_cluster_issuer: str | None = None
+    default_cloudflare_proxied: bool | None = None
+    backend_service_name: str | None = None
+    backend_service_port: int | None = None
+    authentik_outpost_url: str | None = None
+    authentik_signin_url: str | None = None
+    authentik_response_headers: str | None = None
+    authentik_auth_snippet: str | None = None
+
+
+class ClusterSettingsResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    k8s_api_url: str | None
+    k8s_namespace: str
+    k8s_in_cluster: bool
+    default_ingress_class: str
+    default_cluster_issuer: str
+    default_cloudflare_proxied: bool
+    backend_service_name: str
+    backend_service_port: int
+    authentik_outpost_url: str | None
+    authentik_signin_url: str | None
+    authentik_response_headers: str
+    authentik_auth_snippet: str | None
+    has_token: bool = False
+    has_ca_cert: bool = False
 
 
 class NginxConfigResponse(BaseModel):

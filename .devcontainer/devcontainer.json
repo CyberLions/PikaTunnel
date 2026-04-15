@@ -49,7 +49,7 @@
     "5432": { "label": "PostgreSQL", "onAutoForward": "silent" }
   },
 
-  "postCreateCommand": "cd backend && pip install -e '.[dev]' && cd ../frontend && npm install",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y openvpn nginx && sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com --recv-keys 7568D9BB55FF9E5287D586017AE645C0CF8E292A && echo 'deb https://repo.pritunl.com/stable/apt jammy main' | sudo tee /etc/apt/sources.list.d/pritunl.list && sudo apt-get update && echo '#!/bin/sh\nexit 0' | sudo tee /var/lib/dpkg/info/resolvconf.postinst && sudo chmod +x /var/lib/dpkg/info/resolvconf.postinst && sudo apt-get install -y pritunl-client && cd backend && pip install -e '.[dev]' && cd ../frontend && npm install",
   "postStartCommand": "",
 
   "remoteUser": "vscode"

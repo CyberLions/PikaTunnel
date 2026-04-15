@@ -1,0 +1,97 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ "main" , "staging" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Extract branch name
+      shell: bash
+      run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+      id: extract_branch
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to CCSO Docker Registry
+      uses: docker/login-action@v3
+      with:
+        registry: registry.psuccso.org
+        username: robot$pikatunnel+github
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Generate Tag Names
+      run: |
+        if [ ${{ steps.extract_branch.outputs.branch }} = "main" ]; then
+          echo "TAG_LATEST=pikatunnel:latest" >> $GITHUB_ENV
+          echo "TAG_COMMIT=pikatunnel:$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        elif [ ${{ steps.extract_branch.outputs.branch }} = "staging" ]; then
+          echo "TAG_LATEST=pikatunnel-stage:latest" >> $GITHUB_ENV
+          echo "TAG_COMMIT=pikatunnel-stage:$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        else
+          exit 0
+        fi
+
+    - name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        file: ./Dockerfile
+        push: true
+        tags: |
+          registry.psuccso.org/pikatunnel/${{ env.TAG_LATEST }}
+          registry.psuccso.org/pikatunnel/${{ env.TAG_COMMIT }}
+        cache-from: type=registry,ref=registry.psuccso.org/pikatunnel/${{ env.TAG_LATEST }}
+        cache-to: type=inline
+
+  deploy-rancher:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Extract branch name
+      shell: bash
+      run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+      id: extract_branch
+
+    - name: Redeploy Rancher
+      run: |
+        url='https://rancher.psuccso.org'
+        cluster=local
+        token=${{ secrets.RANCHER_TOKEN }}
+
+        redeploy() {
+            local app=$1
+            pod_upgrade_body=$(curl -s -u "$token" \
+            -k $url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app \
+            -X GET \
+            -H 'Accept: application/json' \
+            -H 'Content-Type: application/json' \
+            -H 'Pragma: no-cache' \
+            -H 'Cache-Control: no-cache' 2>&1 | sed  "s/\"cattle\.io\/timestamp\"\:\"[0-9T:Z-]*\"/\"cattle\.io\/timestamp\":\"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"/g")
+
+            curl -u "$token" \
+            -k -s $url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app \
+            -X PUT \
+            -H 'Accept: application/json' \
+            -H 'Content-Type: application/json' \
+            --data-binary "$pod_upgrade_body" --compressed
+        }
+
+        if [ ${{ steps.extract_branch.outputs.branch }} = "main" ]; then
+            namespace=pikatunnel
+            redeploy "pikatunnel"
+        elif [ ${{ steps.extract_branch.outputs.branch }} = "staging" ]; then
+            namespace=pikatunnel-staging
+            redeploy "pikatunnel"
+        else
+            exit 0
+        fi

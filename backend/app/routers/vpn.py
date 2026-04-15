@@ -6,18 +6,19 @@ from app.database import get_db
 from app.models import VPNConfig
 from app.schemas import VPNConfigCreate, VPNConfigUpdate, VPNConfigResponse, VPNStatusResponse
 from app.services import vpn_manager
+from app.services.oidc import require_admin
 
 router = APIRouter(prefix="/api/v1/vpn", tags=["vpn"])
 
 
 @router.get("/config", response_model=list[VPNConfigResponse])
-async def list_vpn_configs(db: AsyncSession = Depends(get_db)):
+async def list_vpn_configs(db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     result = await db.execute(select(VPNConfig))
     return result.scalars().all()
 
 
 @router.post("/config", response_model=VPNConfigResponse, status_code=201)
-async def create_vpn_config(data: VPNConfigCreate, db: AsyncSession = Depends(get_db)):
+async def create_vpn_config(data: VPNConfigCreate, db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     config = VPNConfig(**data.model_dump())
     db.add(config)
     await db.commit()
@@ -26,7 +27,7 @@ async def create_vpn_config(data: VPNConfigCreate, db: AsyncSession = Depends(ge
 
 
 @router.put("/config/{config_id}", response_model=VPNConfigResponse)
-async def update_vpn_config(config_id: uuid.UUID, data: VPNConfigUpdate, db: AsyncSession = Depends(get_db)):
+async def update_vpn_config(config_id: uuid.UUID, data: VPNConfigUpdate, db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     config = await db.get(VPNConfig, config_id)
     if not config:
         raise HTTPException(status_code=404, detail="VPN config not found")
@@ -38,7 +39,7 @@ async def update_vpn_config(config_id: uuid.UUID, data: VPNConfigUpdate, db: Asy
 
 
 @router.delete("/config/{config_id}", status_code=204)
-async def delete_vpn_config(config_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def delete_vpn_config(config_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     config = await db.get(VPNConfig, config_id)
     if not config:
         raise HTTPException(status_code=404, detail="VPN config not found")
@@ -47,7 +48,7 @@ async def delete_vpn_config(config_id: uuid.UUID, db: AsyncSession = Depends(get
 
 
 @router.post("/config/{config_id}/connect", response_model=VPNStatusResponse)
-async def connect_vpn(config_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def connect_vpn(config_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     config = await db.get(VPNConfig, config_id)
     if not config:
         raise HTTPException(status_code=404, detail="VPN config not found")
@@ -56,7 +57,7 @@ async def connect_vpn(config_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/config/{config_id}/disconnect", response_model=VPNStatusResponse)
-async def disconnect_vpn(config_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def disconnect_vpn(config_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     config = await db.get(VPNConfig, config_id)
     if not config:
         raise HTTPException(status_code=404, detail="VPN config not found")
@@ -65,7 +66,7 @@ async def disconnect_vpn(config_id: uuid.UUID, db: AsyncSession = Depends(get_db
 
 
 @router.get("/status", response_model=list[VPNStatusResponse])
-async def vpn_status(db: AsyncSession = Depends(get_db)):
+async def vpn_status(db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     result = await db.execute(select(VPNConfig))
     configs = result.scalars().all()
     statuses = []

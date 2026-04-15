@@ -17,6 +17,7 @@ type FormData = {
   protocol: "tcp" | "udp";
   proxy_protocol: boolean;
   enabled: boolean;
+  groups: string;
 };
 
 const emptyForm: FormData = {
@@ -27,6 +28,7 @@ const emptyForm: FormData = {
   protocol: "tcp",
   proxy_protocol: false,
   enabled: true,
+  groups: "",
 };
 
 export default function Streams() {
@@ -67,6 +69,7 @@ export default function Streams() {
       protocol: stream.protocol,
       proxy_protocol: stream.proxy_protocol,
       enabled: stream.enabled,
+      groups: stream.groups || "",
     });
     setModalOpen(true);
   }
@@ -83,6 +86,7 @@ export default function Streams() {
         protocol: form.protocol,
         proxy_protocol: form.proxy_protocol,
         enabled: form.enabled,
+        groups: form.groups,
       };
       if (editing) {
         await updateStream(editing.id, payload);
@@ -117,6 +121,7 @@ export default function Streams() {
     { key: "listen", header: "Listen Port", render: (s: StreamRoute) => <span className="font-mono text-xs text-orange-400">{s.listen_port}</span> },
     { key: "protocol", header: "Protocol", render: (s: StreamRoute) => <span className="uppercase text-xs font-bold text-stone-400 bg-stone-800/40 px-2 py-0.5 rounded-md">{s.protocol}</span> },
     { key: "pp", header: "Proxy Protocol", render: (s: StreamRoute) => s.proxy_protocol ? <span className="text-emerald-400 text-xs font-semibold">Yes</span> : <span className="text-stone-600 text-xs">No</span> },
+    { key: "groups", header: "Groups", render: (s: StreamRoute) => s.groups ? <span className="text-xs text-orange-400">{s.groups}</span> : <span className="text-xs text-stone-600">all</span> },
     {
       key: "enabled",
       header: "Status",
@@ -185,6 +190,10 @@ export default function Streams() {
               <label className="mb-1.5 block text-sm font-medium text-stone-300">Listen Port</label>
               <input required type="number" className="input-field" value={form.listen_port} onChange={(e) => setForm({ ...form, listen_port: e.target.value })} />
             </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Groups</label>
+            <input className="input-field" placeholder="e.g. network-team, devops (comma-separated, empty = all)" value={form.groups} onChange={(e) => setForm({ ...form, groups: e.target.value })} />
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-stone-300">Protocol</label>

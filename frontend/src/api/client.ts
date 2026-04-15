@@ -20,11 +20,22 @@ async function request<T>(
     headers["Content-Type"] = "application/json";
   }
 
+  const token = localStorage.getItem("pikatunnel_token");
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BASE_URL}/api/v1${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+
+  if (res.status === 401) {
+    localStorage.removeItem("pikatunnel_token");
+    window.location.href = "/login";
+    throw new ApiError(401, "Unauthorized");
+  }
 
   if (!res.ok) {
     let errorBody: unknown;

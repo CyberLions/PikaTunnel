@@ -28,3 +28,7 @@ export function updateRoute(
 export function deleteRoute(id: string): Promise<void> {
   return del(`/routes/${id}`);
 }
+
+export function syncIngress(id: string): Promise<{ message: string }> {
+  return post(`/routes/${id}/sync-ingress`);
+}

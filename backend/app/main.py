@@ -6,7 +6,7 @@ from sqlalchemy import text
 from app.config import settings
 from app.database import engine
 from app.models import Base
-from app.routers import routes, streams, vpn, auth, health, nginx
+from app.routers import routes, streams, vpn, auth, health, nginx, cluster
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -40,3 +40,4 @@ app.include_router(vpn.router)
 app.include_router(auth.router)
 app.include_router(health.router)
 app.include_router(nginx.router)
+app.include_router(cluster.router)
