@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://pikatunnel:pikatunnel@db:5432/pikatunnel"
     SECRET_KEY: str = ""
     ENVIRONMENT: str = "development"
+    PUBLIC_URL: str | None = None
     VPN_ENABLED: bool = False
     VPN_TYPE: str = "pritunl"
     NGINX_CONFIG_PATH: str = "/etc/nginx/nginx.conf"

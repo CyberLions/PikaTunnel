@@ -90,6 +90,12 @@ AUTH_PROVIDERS=[{"id":"authentik","name":"Authentik","issuer_url":"https://auth.
 
 `admin_group` is optional per provider. If omitted, PikaTunnel falls back to the global `ADMIN_GROUP` value.
 
+If PikaTunnel sits behind a reverse proxy or ingress that terminates TLS, set `PUBLIC_URL` to the externally visible HTTPS URL so OIDC callbacks are generated correctly:
+
+```bash
+PUBLIC_URL=https://pikatunnel.example.com
+```
+
 ## Project Structure
 
 ```

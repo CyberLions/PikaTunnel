@@ -22,6 +22,15 @@ from app.services.oidc import (
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
+def build_callback_url(request: Request, provider_id: str) -> str:
+    callback_url = request.url_for("callback").include_query_params(provider_id=provider_id)
+    if not settings.PUBLIC_URL:
+        return str(callback_url)
+
+    public_base = settings.PUBLIC_URL.rstrip("/")
+    return f"{public_base}{callback_url.path}?provider_id={provider_id}"
+
+
 @router.get("/providers", response_model=list[OIDCProviderResponse])
 async def list_providers(db: AsyncSession = Depends(get_db)):
     return await list_auth_providers(db)
@@ -62,7 +71,7 @@ async def login(provider_id: str, request: Request, db: AsyncSession = Depends(g
     provider = await get_auth_provider(provider_id, db)
     if not provider or not provider.enabled:
         raise HTTPException(status_code=404, detail="Provider not found or disabled")
-    redirect_uri = str(request.url_for("callback").include_query_params(provider_id=provider.id))
+    redirect_uri = build_callback_url(request, provider.id)
     url = await get_authorization_url(provider, redirect_uri)
     return RedirectResponse(url)
 
@@ -73,7 +82,7 @@ async def callback(code: str, provider_id: str, request: Request, db: AsyncSessi
     if not provider or not provider.enabled:
         raise HTTPException(status_code=400, detail="No active OIDC provider")
 
-    redirect_uri = str(request.url_for("callback").include_query_params(provider_id=provider.id))
+    redirect_uri = build_callback_url(request, provider.id)
     userinfo = await exchange_code(provider, code, redirect_uri)
 
     groups = extract_groups(userinfo, provider.groups_claim)
