@@ -52,6 +52,15 @@ export default function VPN() {
     load();
   }, []);
 
+  const hasActive = vpns.some((v) => v.status === "connecting");
+  useEffect(() => {
+    if (!hasActive) return;
+    const timer = setInterval(() => {
+      listVPNs().then(setVpns).catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [hasActive]);
+
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);

@@ -14,7 +14,10 @@ router = APIRouter(prefix="/api/v1/vpn", tags=["vpn"])
 @router.get("/config", response_model=list[VPNConfigResponse])
 async def list_vpn_configs(db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     result = await db.execute(select(VPNConfig))
-    return result.scalars().all()
+    configs = result.scalars().all()
+    for config in configs:
+        await vpn_manager.refresh_status(config, db)
+    return configs
 
 
 @router.post("/config", response_model=VPNConfigResponse, status_code=201)
@@ -80,6 +83,6 @@ async def vpn_status(db: AsyncSession = Depends(get_db), user: dict = Depends(re
     configs = result.scalars().all()
     statuses = []
     for config in configs:
-        current = await vpn_manager.get_status(config)
+        current = await vpn_manager.refresh_status(config, db)
         statuses.append(VPNStatusResponse(id=config.id, name=config.name, vpn_type=config.vpn_type, status=current))
     return statuses

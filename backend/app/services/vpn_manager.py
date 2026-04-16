@@ -235,6 +235,11 @@ async def _stop_all() -> None:
 
 
 async def connect(config: VPNConfig, db: AsyncSession) -> str:
+    """Kick off the VPN daemon and return immediately.
+
+    The UI converges on the real state via refresh_status() on subsequent
+    list/status polls — we don't block the HTTP request for up to 60s.
+    """
     detected = _detect_protocol(config.config_data or {})
     if not detected:
         logger.error("No ovpn_config or wg_config in config_data for %s", config.name)
@@ -243,10 +248,6 @@ async def connect(config: VPNConfig, db: AsyncSession) -> str:
         await db.commit()
         return "error"
     protocol, text = detected
-
-    config.status = "connecting"
-    db.add(config)
-    await db.commit()
 
     await _stop_all()
 
@@ -257,21 +258,20 @@ async def connect(config: VPNConfig, db: AsyncSession) -> str:
         await db.commit()
         return "error"
 
-    for _ in range(12):
-        await asyncio.sleep(5)
-        status = await get_status(config)
-        if status == "connected":
-            config.status = "connected"
-            db.add(config)
-            await db.commit()
-            return "connected"
-
-    logger.error("Timed out waiting for %s connection on %s", protocol, config.name)
-    await _stop_all()
-    config.status = "error"
+    config.status = "connecting"
     db.add(config)
     await db.commit()
-    return "error"
+    return "connecting"
+
+
+async def refresh_status(config: VPNConfig, db: AsyncSession) -> str:
+    """Reconcile the stored status with the live daemon state and persist."""
+    live = await get_status(config)
+    if config.status != live:
+        config.status = live
+        db.add(config)
+        await db.commit()
+    return live
 
 
 async def disconnect(config: VPNConfig, db: AsyncSession) -> str:

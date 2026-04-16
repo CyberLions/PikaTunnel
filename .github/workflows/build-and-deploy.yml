@@ -64,34 +64,34 @@ jobs:
 
     - name: Redeploy Rancher
       run: |
+        set -euo pipefail
+
         url='https://rancher.psuccso.org'
         cluster=local
         token=${{ secrets.RANCHER_TOKEN }}
 
         redeploy() {
-            local app=$1
-            pod_upgrade_body=$(curl -s -u "$token" \
-            -k $url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app \
-            -X GET \
-            -H 'Accept: application/json' \
-            -H 'Content-Type: application/json' \
-            -H 'Pragma: no-cache' \
-            -H 'Cache-Control: no-cache' 2>&1 | sed  "s/\"cattle\.io\/timestamp\"\:\"[0-9T:Z-]*\"/\"cattle\.io\/timestamp\":\"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"/g")
+            local namespace=$1
+            local app=$2
+            local timestamp
+            timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-            curl -u "$token" \
-            -k -s $url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app \
-            -X PUT \
-            -H 'Accept: application/json' \
-            -H 'Content-Type: application/json' \
-            --data-binary "$pod_upgrade_body" --compressed
+            # Trigger a rolling restart by patching the pod template's
+            # restartedAt annotation — same mechanism as `kubectl rollout restart`.
+            # strategic-merge-patch doesn't require metadata.resourceVersion.
+            curl -fsSL -k -u "$token" \
+              -X PATCH \
+              -H 'Accept: application/json' \
+              -H 'Content-Type: application/strategic-merge-patch+json' \
+              --data "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"$timestamp\"}}}}}" \
+              "$url/k8s/clusters/$cluster/apis/apps/v1/namespaces/$namespace/deployments/$app"
         }
 
-        if [ ${{ steps.extract_branch.outputs.branch }} = "main" ]; then
-            namespace=pikatunnel
-            redeploy "pikatunnel"
-        elif [ ${{ steps.extract_branch.outputs.branch }} = "staging" ]; then
-            namespace=pikatunnel-staging
-            redeploy "pikatunnel"
+        branch=${{ steps.extract_branch.outputs.branch }}
+        if [ "$branch" = "main" ]; then
+            redeploy pikatunnel pikatunnel
+        elif [ "$branch" = "staging" ]; then
+            redeploy pikatunnel-staging pikatunnel
         else
             exit 0
         fi
