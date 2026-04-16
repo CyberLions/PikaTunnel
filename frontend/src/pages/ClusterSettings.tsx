@@ -42,6 +42,7 @@ export default function ClusterSettingsPage() {
         default_cloudflare_proxied: settings.default_cloudflare_proxied,
         backend_service_name: settings.backend_service_name,
         backend_service_port: settings.backend_service_port,
+        k8s_loadbalancer_service_name: settings.k8s_loadbalancer_service_name,
         authentik_outpost_url: settings.authentik_outpost_url,
         authentik_signin_url: settings.authentik_signin_url,
         authentik_response_headers: settings.authentik_response_headers,
@@ -155,6 +156,18 @@ export default function ClusterSettingsPage() {
             <label className="mb-1.5 block text-sm font-medium text-stone-300">Service Port</label>
             <input type="number" className="input-field" value={settings.backend_service_port} onChange={(e) => set({ backend_service_port: parseInt(e.target.value) || 80 })} />
           </div>
+        </div>
+        <div className="mt-4">
+          <label className="mb-1.5 block text-sm font-medium text-stone-300">LoadBalancer Service Name</label>
+          <input
+            className="input-field"
+            placeholder="e.g. pikatunnel (leave empty to disable port sync)"
+            value={settings.k8s_loadbalancer_service_name || ""}
+            onChange={(e) => set({ k8s_loadbalancer_service_name: e.target.value || null })}
+          />
+          <p className="mt-1 text-xs text-stone-600">
+            The Service whose <code>spec.ports</code> pikatunnel patches when you add or toggle stream routes. Required for "Sync Service Ports" to work.
+          </p>
         </div>
       </div>
 

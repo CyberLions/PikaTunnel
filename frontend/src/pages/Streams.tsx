@@ -4,6 +4,7 @@ import {
   exportStreamsCsv, importStreamsCsv,
   type ImportResult,
 } from "../api/streams";
+import { syncServicePorts } from "../api/cluster";
 import { reloadNginx } from "../api/nginx";
 import type { StreamRoute } from "../types";
 import DataTable from "../components/DataTable";
@@ -46,6 +47,26 @@ export default function Streams() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  async function handleSyncPorts() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await syncServicePorts();
+      if (res.synced) {
+        const count = res.ports?.length ?? 0;
+        setSyncMsg({ kind: "ok", text: `Service ports synced — ${count} port${count === 1 ? "" : "s"} exposed` });
+      } else {
+        setSyncMsg({ kind: "err", text: res.error || "Sync failed" });
+      }
+    } catch (e) {
+      setSyncMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function handleExport() {
     try {
@@ -207,9 +228,19 @@ export default function Streams() {
             {importing ? "Importing..." : "Import CSV"}
           </button>
           <button onClick={handleExport} className="btn-secondary">Export CSV</button>
+          <button onClick={handleSyncPorts} disabled={syncing} className="btn-secondary">
+            {syncing ? "Syncing..." : "Sync Service Ports"}
+          </button>
           <button onClick={openCreate} className="btn-primary">Add Stream</button>
         </div>
       </div>
+
+      {syncMsg && (
+        <div className={`mb-6 flex items-start justify-between rounded-md border p-3 text-sm ${syncMsg.kind === "ok" ? "border-emerald-800/40 bg-emerald-950/30 text-emerald-300" : "border-red-800/40 bg-red-950/30 text-red-300"}`}>
+          <span>{syncMsg.text}</span>
+          <button onClick={() => setSyncMsg(null)} className="ml-3 text-xs text-stone-500 hover:text-stone-300">dismiss</button>
+        </div>
+      )}
 
       {importResult && (
         <div className="mb-6 rounded-md border border-stone-800 bg-neutral-950 p-4">

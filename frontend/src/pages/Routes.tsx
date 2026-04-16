@@ -5,6 +5,7 @@ import {
   type ImportResult,
 } from "../api/routes";
 import { reloadNginx } from "../api/nginx";
+import { syncAllIngresses } from "../api/cluster";
 import type { ProxyRoute } from "../types";
 import DataTable from "../components/DataTable";
 import Modal from "../components/Modal";
@@ -70,6 +71,39 @@ export default function Routes() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [syncingRowId, setSyncingRowId] = useState<string | null>(null);
+
+  async function handleSyncAll() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await syncAllIngresses();
+      const hasErrors = res.errors > 0;
+      setSyncMsg({
+        kind: hasErrors ? "err" : "ok",
+        text: `Synced ${res.synced} of ${res.total} ingresses${hasErrors ? ` (${res.errors} failed)` : ""}`,
+      });
+    } catch (e) {
+      setSyncMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleRowSync(id: string, name: string) {
+    setSyncingRowId(id);
+    setSyncMsg(null);
+    try {
+      const res = await syncIngress(id);
+      setSyncMsg({ kind: "ok", text: res.message || `Synced ${name}` });
+    } catch (e) {
+      setSyncMsg({ kind: "err", text: `Sync failed for ${name}: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setSyncingRowId(null);
+    }
+  }
 
   async function handleExport() {
     try {
@@ -225,7 +259,15 @@ export default function Routes() {
       render: (r: ProxyRoute) => (
         <div className="flex gap-2">
           <button onClick={() => openEdit(r)} className="text-sm font-medium text-orange-400 hover:text-orange-300 transition-colors">Edit</button>
-          {r.k8s_ingress_enabled && <button onClick={() => syncIngress(r.id)} className="text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors">Sync</button>}
+          {r.k8s_ingress_enabled && (
+            <button
+              onClick={() => handleRowSync(r.id, r.name)}
+              disabled={syncingRowId === r.id}
+              className="text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+            >
+              {syncingRowId === r.id ? "..." : "Sync"}
+            </button>
+          )}
           <button onClick={() => setConfirmDelete(r.id)} className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors">Delete</button>
         </div>
       ),
@@ -257,9 +299,19 @@ export default function Routes() {
             {importing ? "Importing..." : "Import CSV"}
           </button>
           <button onClick={handleExport} className="btn-secondary">Export CSV</button>
+          <button onClick={handleSyncAll} disabled={syncing} className="btn-secondary">
+            {syncing ? "Syncing..." : "Sync All Ingresses"}
+          </button>
           <button onClick={openCreate} className="btn-primary">Add Route</button>
         </div>
       </div>
+
+      {syncMsg && (
+        <div className={`mb-6 flex items-start justify-between rounded-md border p-3 text-sm ${syncMsg.kind === "ok" ? "border-emerald-800/40 bg-emerald-950/30 text-emerald-300" : "border-red-800/40 bg-red-950/30 text-red-300"}`}>
+          <span>{syncMsg.text}</span>
+          <button onClick={() => setSyncMsg(null)} className="ml-3 text-xs text-stone-500 hover:text-stone-300">dismiss</button>
+        </div>
+      )}
 
       {importResult && (
         <div className="mb-6 rounded-md border border-stone-800 bg-neutral-950 p-4">

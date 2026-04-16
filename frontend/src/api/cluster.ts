@@ -10,6 +10,7 @@ export interface ClusterSettings {
   default_cloudflare_proxied: boolean;
   backend_service_name: string;
   backend_service_port: number;
+  k8s_loadbalancer_service_name: string | null;
   authentik_outpost_url: string | null;
   authentik_signin_url: string | null;
   authentik_response_headers: string;
@@ -32,4 +33,18 @@ export function testClusterConnection(): Promise<{ connected: boolean; error?: s
 
 export function clearCredentials(): Promise<void> {
   return del("/cluster/settings/credentials");
+}
+
+export function syncAllIngresses(): Promise<{ synced: number; errors: number; total: number }> {
+  return post("/cluster/sync-all-ingresses");
+}
+
+export interface ServicePortsSyncResult {
+  synced: boolean;
+  error?: string;
+  ports?: { name: string; port: number; target_port: number; protocol: string }[];
+}
+
+export function syncServicePorts(): Promise<ServicePortsSyncResult> {
+  return post("/cluster/sync-service-ports");
 }
