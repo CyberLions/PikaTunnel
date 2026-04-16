@@ -38,15 +38,16 @@ RUN arch=$(dpkg --print-architecture) && \
         apt-get install -y --no-install-recommends pritunl-client-electron && \
         rm -rf /var/lib/apt/lists/*; \
     elif [ "$arch" = "arm64" ]; then \
-        curl -LO https://golang.org/dl/go1.22.2.linux-arm64.tar.gz && \
-        tar -C /usr/local -xzf go1.22.2.linux-arm64.tar.gz && \
-        rm go1.22.2.linux-arm64.tar.gz && \
+        apt-get update && apt-get install -y --no-install-recommends git && \
+        curl -LO https://go.dev/dl/go1.23.4.linux-arm64.tar.gz && \
+        tar -C /usr/local -xzf go1.23.4.linux-arm64.tar.gz && \
+        rm go1.23.4.linux-arm64.tar.gz && \
         export PATH=$PATH:/usr/local/go/bin && \
-        go install github.com/pritunl/pritunl-client-electron/cli@latest && \
-        go install github.com/pritunl/pritunl-client-electron/service@latest && \
-        cp /root/go/bin/service /usr/bin/pritunl-client-service && \
-        cp /root/go/bin/cli /usr/bin/pritunl-client && \
-        rm -rf /usr/local/go /root/go; \
+        git clone --depth=1 https://github.com/pritunl/pritunl-client-electron.git /tmp/pritunl-src && \
+        cd /tmp/pritunl-src/cli && go build -o /usr/bin/pritunl-client . && \
+        cd /tmp/pritunl-src/service && go build -o /usr/bin/pritunl-client-service . && \
+        rm -rf /tmp/pritunl-src /usr/local/go /root/go /root/.cache/go-build && \
+        apt-get purge -y git && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*; \
     else \
         echo "Unsupported architecture: $arch" && exit 1; \
     fi
