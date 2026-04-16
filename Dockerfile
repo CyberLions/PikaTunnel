@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     ENVIRONMENT=production
 
-# Install nginx, Apache, and runtime dependencies
+# Install nginx, Apache, and runtime dependencies (including openvpn + wireguard-tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     apache2 \
     nginx \
@@ -22,35 +22,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     procps \
     ca-certificates \
-    gnupg \
     iptables \
     iproute2 \
     openvpn \
+    wireguard-tools \
     && rm -rf /var/lib/apt/lists/*
-
-# Install pritunl-client (arch-aware: apt for amd64, build from source for arm64)
-RUN arch=$(dpkg --print-architecture) && \
-    if [ "$arch" = "amd64" ]; then \
-        echo "deb https://repo.pritunl.com/stable/apt noble main" > /etc/apt/sources.list.d/pritunl.list && \
-        gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 7568D9BB55FF9E5287D586017AE645C0CF8E292A && \
-        gpg --armor --export 7568D9BB55FF9E5287D586017AE645C0CF8E292A | tee /etc/apt/trusted.gpg.d/pritunl.asc && \
-        apt-get update && \
-        apt-get install -y --no-install-recommends pritunl-client-electron && \
-        rm -rf /var/lib/apt/lists/*; \
-    elif [ "$arch" = "arm64" ]; then \
-        apt-get update && apt-get install -y --no-install-recommends git && \
-        curl -LO https://go.dev/dl/go1.23.4.linux-arm64.tar.gz && \
-        tar -C /usr/local -xzf go1.23.4.linux-arm64.tar.gz && \
-        rm go1.23.4.linux-arm64.tar.gz && \
-        export PATH=$PATH:/usr/local/go/bin && \
-        git clone --depth=1 https://github.com/pritunl/pritunl-client-electron.git /tmp/pritunl-src && \
-        cd /tmp/pritunl-src/cli && go build -o /usr/bin/pritunl-client . && \
-        cd /tmp/pritunl-src/service && go build -o /usr/bin/pritunl-client-service . && \
-        rm -rf /tmp/pritunl-src /usr/local/go /root/go /root/.cache/go-build && \
-        apt-get purge -y git && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*; \
-    else \
-        echo "Unsupported architecture: $arch" && exit 1; \
-    fi
 
 # Install Python dependencies
 WORKDIR /app
