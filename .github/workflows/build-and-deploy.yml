@@ -136,7 +136,7 @@ jobs:
           branch=${{ steps.extract_branch.outputs.branch }}
 
           if [ "$branch" = "main" ]; then
-            redeploy "pikatunnel" "pikatunnel"
+            redeploy "pritunl" "pikatunnel"
           elif [ "$branch" = "staging" ]; then
-            redeploy "pikatunnel-staging" "pikatunnel"
+            redeploy "pritunl-staging" "pikatunnel"
           fi
