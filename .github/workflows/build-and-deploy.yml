@@ -55,7 +55,7 @@ jobs:
 
   deploy-rancher:
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
     - name: Extract branch name
       shell: bash
@@ -64,8 +64,6 @@ jobs:
 
     - name: Redeploy Rancher
       run: |
-        set -euo pipefail
-
         url='https://rancher.psuccso.org'
         cluster=local
         token=${{ secrets.RANCHER_TOKEN }}
@@ -73,27 +71,26 @@ jobs:
         redeploy() {
             local namespace=$1
             local app=$2
-            local timestamp
-            timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            pod_upgrade_body=$(curl -s -u "$token" \
+            -k $url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app \
+            -X GET \
+            -H 'Accept: application/json' \
+            -H 'Content-Type: application/json' \
+            -H 'Pragma: no-cache' \
+            -H 'Cache-Control: no-cache' 2>&1 | sed  "s/\"cattle\.io\/timestamp\"\:\"[0-9T:Z-]*\"/\"cattle\.io\/timestamp\":\"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"/g")
 
-            # Trigger a rolling restart by patching the pod template's
-            # restartedAt annotation — same mechanism as `kubectl rollout restart`.
-            # strategic-merge-patch doesn't require metadata.resourceVersion.
-            # Use the Rancher Steve API path that the previous GET/PUT script
-            # used; it's known to exist on this cluster.
-            curl -fsSL -k -u "$token" \
-              -X PATCH \
-              -H 'Accept: application/json' \
-              -H 'Content-Type: application/strategic-merge-patch+json' \
-              --data "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"$timestamp\"}}}}}" \
-              "$url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app"
+            curl -u "$token" \
+            -k -s $url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app \
+            -X PUT \
+            -H 'Accept: application/json' \
+            -H 'Content-Type: application/json' \
+            --data-binary "$pod_upgrade_body" --compressed
         }
 
         branch=${{ steps.extract_branch.outputs.branch }}
+
         if [ "$branch" = "main" ]; then
-            redeploy pikatunnel pikatunnel
+          redeploy "pikatunnel" "pikatunnel"
         elif [ "$branch" = "staging" ]; then
-            redeploy pikatunnel-staging pikatunnel
-        else
-            exit 0
+          redeploy "pikatunnel-staging" "pikatunnel"
         fi
