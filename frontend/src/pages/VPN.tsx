@@ -204,6 +204,11 @@ export default function VPN() {
                 </div>
                 <StatusBadge status={vpn.status} />
               </div>
+              {vpn.autostart && vpn.reconnect_suspended_until && new Date(vpn.reconnect_suspended_until) > new Date() && (
+                <p className="mb-3 text-xs text-amber-400">
+                  Autoreconnect paused until {new Date(vpn.reconnect_suspended_until).toLocaleTimeString()}
+                </p>
+              )}
               {typeof vpn.config_data?.ovpn_config === "string" && (
                 <p className="mb-3 text-xs text-stone-600 truncate font-mono">
                   {vpn.config_data.ovpn_config.split("\n").find((l) => l.startsWith("remote ")) || "Profile loaded"}

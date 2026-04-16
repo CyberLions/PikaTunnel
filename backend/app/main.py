@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -20,6 +21,7 @@ _ADDITIVE_COLUMNS: list[str] = [
     "ALTER TABLE IF EXISTS proxy_routes ADD COLUMN IF NOT EXISTS ssl_cert_name VARCHAR(255)",
     "ALTER TABLE IF EXISTS cluster_settings ADD COLUMN IF NOT EXISTS k8s_loadbalancer_service_name VARCHAR(255)",
     "ALTER TABLE IF EXISTS vpn_configs ADD COLUMN IF NOT EXISTS autostart BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE IF EXISTS vpn_configs ADD COLUMN IF NOT EXISTS reconnect_suspended_until TIMESTAMPTZ",
     "ALTER TABLE IF EXISTS tls_certificates ALTER COLUMN cert_pem DROP NOT NULL",
     "ALTER TABLE IF EXISTS tls_certificates ALTER COLUMN key_pem DROP NOT NULL",
     "ALTER TABLE IF EXISTS tls_certificates ADD COLUMN IF NOT EXISTS cert_path VARCHAR(1024)",
@@ -75,6 +77,20 @@ async def _supervise_autostart_once() -> None:
                     target.status = "connected"
                     db.add(target)
                 return
+
+            # Honor manual disconnect: don't fight the user for the suspension window.
+            suspended_until = target.reconnect_suspended_until
+            if suspended_until is not None:
+                now = datetime.now(timezone.utc)
+                # Database timestamps come back timezone-aware with our schema,
+                # but guard against a naive value just in case.
+                if suspended_until.tzinfo is None:
+                    suspended_until = suspended_until.replace(tzinfo=timezone.utc)
+                if now < suspended_until:
+                    return
+                # Suspension expired — clear it so we stop checking the clock.
+                target.reconnect_suspended_until = None
+                db.add(target)
 
             # live is not 'connected' — decide whether to (re)connect.
             if target.status == "connecting":

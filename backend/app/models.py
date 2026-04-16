@@ -76,6 +76,7 @@ class VPNConfig(Base):
     vpn_type: Mapped[str] = mapped_column(String(50), default="openvpn")
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     autostart: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    reconnect_suspended_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     config_data: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(50), default="disconnected")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

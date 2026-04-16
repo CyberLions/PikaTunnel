@@ -45,6 +45,7 @@ export interface VPNConfig {
   vpn_type: string;
   enabled: boolean;
   autostart: boolean;
+  reconnect_suspended_until: string | null;
   config_data: Record<string, unknown>;
   status: "disconnected" | "connecting" | "connected" | "error";
   created_at: string;

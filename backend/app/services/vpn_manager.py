@@ -2,11 +2,16 @@ import asyncio
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import VPNConfig
 
 logger = logging.getLogger(__name__)
+
+# After a manual disconnect, pause the autoreconnect watcher for this long
+# so the user isn't fighting it. An explicit Connect clears the suspension.
+RECONNECT_SUSPEND_MINUTES = 10
 
 RUN_DIR = Path("/var/run/pikatunnel")
 OVPN_CONF = RUN_DIR / "openvpn.conf"
@@ -274,6 +279,9 @@ async def connect(config: VPNConfig, db: AsyncSession) -> str:
         return "error"
 
     config.status = "connecting"
+    # Explicit Connect clears any disconnect-induced suspension so the
+    # autoreconnect watcher takes over again if the tunnel later drops.
+    config.reconnect_suspended_until = None
     db.add(config)
     await db.commit()
     return "connecting"
@@ -292,6 +300,10 @@ async def refresh_status(config: VPNConfig, db: AsyncSession) -> str:
 async def disconnect(config: VPNConfig, db: AsyncSession) -> str:
     await _stop_all()
     config.status = "disconnected"
+    # Suspend the autoreconnect watcher so this manual disconnect isn't
+    # immediately undone. Explicit Connect (or editing the config) clears it;
+    # otherwise it expires automatically after RECONNECT_SUSPEND_MINUTES.
+    config.reconnect_suspended_until = datetime.now(timezone.utc) + timedelta(minutes=RECONNECT_SUSPEND_MINUTES)
     db.add(config)
     await db.commit()
     return "disconnected"

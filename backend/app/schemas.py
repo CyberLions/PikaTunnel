@@ -143,6 +143,7 @@ class VPNConfigResponse(BaseModel):
     vpn_type: str
     enabled: bool
     autostart: bool = False
+    reconnect_suspended_until: datetime | None = None
     config_data: dict
     status: str
     created_at: datetime
