@@ -4,6 +4,12 @@ services:
     ports:
       - "3000:3000"
       - "80:80"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      net.ipv4.ip_forward: "1"
     environment:
       DATABASE_URL: postgresql+asyncpg://pikatunnel:pikatunnel@db:5432/pikatunnel
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}

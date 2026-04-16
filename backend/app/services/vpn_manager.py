@@ -95,9 +95,37 @@ async def _ovpn_stop() -> None:
             pass
 
 
+def _normalize_ovpn(text: str) -> str:
+    """Fix common PEM-corruption patterns from UI round-trips.
+
+    OpenSSL 3 strictly rejects inline certs with leading whitespace on PEM
+    markers/base64 lines or non-ASCII spaces. Normalize: CRLF→LF, drop
+    BOM/zero-width/no-break-spaces, and left-strip every line inside a
+    -----BEGIN/END----- block.
+    """
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\ufeff", "").replace("\u200b", "").replace("\u00a0", " ")
+    out: list[str] = []
+    in_pem = False
+    for raw in text.split("\n"):
+        line = raw.rstrip()
+        stripped = line.lstrip()
+        if stripped.startswith("-----BEGIN"):
+            in_pem = True
+            out.append(stripped)
+        elif stripped.startswith("-----END"):
+            in_pem = False
+            out.append(stripped)
+        elif in_pem:
+            out.append(stripped)
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 async def _ovpn_start(ovpn_text: str) -> bool:
     await _ensure_run_dir()
-    OVPN_CONF.write_text(ovpn_text)
+    OVPN_CONF.write_text(_normalize_ovpn(ovpn_text))
     rc, out, err = await _run_priv(
         "openvpn",
         "--config", str(OVPN_CONF),
