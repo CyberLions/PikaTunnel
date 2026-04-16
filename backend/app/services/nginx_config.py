@@ -13,7 +13,12 @@ TLS_DIR = Path("/var/run/pikatunnel/tls")
 
 
 async def _materialize_certs(db: AsyncSession) -> dict[str, tuple[str, str]]:
-    """Write all uploaded TLS certs to disk; return name -> (cert_path, key_path)."""
+    """Return mapping name -> (cert_path, key_path).
+
+    For certs backed by mounted files (cert_path/key_path set), we use those
+    paths directly so rotation happens naturally when the underlying k8s
+    Secret updates. For inline certs, PEM bodies get written under TLS_DIR.
+    """
     TLS_DIR.mkdir(parents=True, exist_ok=True)
     try:
         os.chmod(TLS_DIR, 0o700)
@@ -24,6 +29,12 @@ async def _materialize_certs(db: AsyncSession) -> dict[str, tuple[str, str]]:
     certs = result.scalars().all()
     mapping: dict[str, tuple[str, str]] = {}
     for c in certs:
+        if c.cert_path and c.key_path:
+            mapping[c.name] = (c.cert_path, c.key_path)
+            continue
+        if not (c.cert_pem and c.key_pem):
+            logger.warning("TLS cert '%s' has no usable source; skipping", c.name)
+            continue
         crt = TLS_DIR / f"{c.name}.crt"
         key = TLS_DIR / f"{c.name}.key"
         crt.write_text(c.cert_pem)

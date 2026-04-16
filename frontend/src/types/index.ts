@@ -55,12 +55,15 @@ export interface TLSCertificateSummary {
   id: string;
   name: string;
   description: string;
+  source: "inline" | "path";
+  cert_path: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface TLSCertificate extends TLSCertificateSummary {
-  cert_pem: string;
+  cert_pem: string | null;
+  key_path: string | null;
   has_key: boolean;
 }
 

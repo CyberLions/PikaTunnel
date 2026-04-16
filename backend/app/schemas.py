@@ -264,15 +264,22 @@ class ClusterSettingsResponse(BaseModel):
 
 class TLSCertificateCreate(BaseModel):
     name: str
-    cert_pem: str
-    key_pem: str
     description: str = ""
+    # Exactly one source must be supplied:
+    # - Inline: cert_pem + key_pem
+    # - Mounted: cert_path + key_path
+    cert_pem: str | None = None
+    key_pem: str | None = None
+    cert_path: str | None = None
+    key_path: str | None = None
 
 
 class TLSCertificateUpdate(BaseModel):
+    description: str | None = None
     cert_pem: str | None = None
     key_pem: str | None = None
-    description: str | None = None
+    cert_path: str | None = None
+    key_path: str | None = None
 
 
 class TLSCertificateResponse(BaseModel):
@@ -281,8 +288,11 @@ class TLSCertificateResponse(BaseModel):
 
     id: uuid.UUID
     name: str
-    cert_pem: str
     description: str
+    source: str  # "inline" or "path"
+    cert_pem: str | None = None
+    cert_path: str | None = None
+    key_path: str | None = None
     has_key: bool = True
     created_at: datetime
     updated_at: datetime
@@ -295,6 +305,8 @@ class TLSCertificateSummary(BaseModel):
     id: uuid.UUID
     name: str
     description: str
+    source: str
+    cert_path: str | None = None
     created_at: datetime
     updated_at: datetime
 

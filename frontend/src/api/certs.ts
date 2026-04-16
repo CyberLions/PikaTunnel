@@ -9,18 +9,27 @@ export function getCert(id: string): Promise<TLSCertificate> {
   return get(`/certs/${id}`);
 }
 
-export function createCert(data: {
+export type CertCreatePayload = {
   name: string;
-  cert_pem: string;
-  key_pem: string;
   description?: string;
-}): Promise<TLSCertificate> {
+} & (
+  | { cert_pem: string; key_pem: string; cert_path?: undefined; key_path?: undefined }
+  | { cert_path: string; key_path: string; cert_pem?: undefined; key_pem?: undefined }
+);
+
+export function createCert(data: CertCreatePayload): Promise<TLSCertificate> {
   return post("/certs", data);
 }
 
 export function updateCert(
   id: string,
-  data: { cert_pem?: string; key_pem?: string; description?: string },
+  data: {
+    cert_pem?: string;
+    key_pem?: string;
+    cert_path?: string;
+    key_path?: string;
+    description?: string;
+  },
 ): Promise<TLSCertificate> {
   return put(`/certs/${id}`, data);
 }

@@ -118,8 +118,13 @@ class TLSCertificate(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    cert_pem: Mapped[str] = mapped_column(Text, nullable=False)
-    key_pem: Mapped[str] = mapped_column(Text, nullable=False)
+    # Either (cert_pem + key_pem) or (cert_path + key_path) must be set.
+    # Inline PEM bodies are stored in the DB; paths point at files mounted
+    # into the pod (e.g. k8s secret volumeMounts).
+    cert_pem: Mapped[str | None] = mapped_column(Text, nullable=True)
+    key_pem: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cert_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    key_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     description: Mapped[str] = mapped_column(Text, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(

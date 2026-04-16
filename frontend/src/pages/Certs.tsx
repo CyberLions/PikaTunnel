@@ -9,11 +9,22 @@ import ConfirmDialog from "../components/ConfirmDialog";
 type FormData = {
   name: string;
   description: string;
+  source: "inline" | "path";
   cert_pem: string;
   key_pem: string;
+  cert_path: string;
+  key_path: string;
 };
 
-const emptyForm: FormData = { name: "", description: "", cert_pem: "", key_pem: "" };
+const emptyForm: FormData = {
+  name: "",
+  description: "",
+  source: "inline",
+  cert_pem: "",
+  key_pem: "",
+  cert_path: "",
+  key_path: "",
+};
 
 export default function Certs() {
   const [certs, setCerts] = useState<TLSCertificateSummary[]>([]);
@@ -58,7 +69,21 @@ export default function Certs() {
     setSaving(true);
     setError(null);
     try {
-      await createCert(form);
+      if (form.source === "path") {
+        await createCert({
+          name: form.name,
+          description: form.description,
+          cert_path: form.cert_path,
+          key_path: form.key_path,
+        });
+      } else {
+        await createCert({
+          name: form.name,
+          description: form.description,
+          cert_pem: form.cert_pem,
+          key_pem: form.key_pem,
+        });
+      }
       setModalOpen(false);
       await load();
     } catch (err) {
@@ -115,7 +140,15 @@ export default function Certs() {
                 <button onClick={() => setConfirmDelete(c.id)} className="text-sm font-medium text-red-400 hover:text-red-300">Delete</button>
               </div>
               {c.description && <p className="text-sm text-stone-400 mb-2">{c.description}</p>}
-              <p className="text-xs text-stone-600">Uploaded {new Date(c.created_at).toLocaleDateString()}</p>
+              <p className="text-xs text-stone-500">
+                <span className={c.source === "path" ? "text-purple-400" : "text-emerald-400"}>
+                  {c.source === "path" ? "Mounted" : "Inline"}
+                </span>
+                {c.source === "path" && c.cert_path && (
+                  <span className="ml-2 font-mono text-stone-500 break-all">{c.cert_path}</span>
+                )}
+              </p>
+              <p className="text-xs text-stone-600 mt-1">Added {new Date(c.created_at).toLocaleDateString()}</p>
             </div>
           ))}
         </div>
@@ -154,40 +187,96 @@ export default function Certs() {
             />
           </div>
           <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <label className="text-sm font-medium text-stone-300">Certificate (PEM)</label>
-              <label className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer">
-                Upload .crt / .pem
-                <input type="file" accept=".crt,.pem,.cer" className="hidden" onChange={(e) => handleFile("cert_pem", e)} />
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Source</label>
+            <div className="flex gap-4 text-sm text-stone-300">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="cert-source"
+                  value="inline"
+                  checked={form.source === "inline"}
+                  onChange={() => setForm({ ...form, source: "inline" })}
+                />
+                Paste PEM (stored in DB)
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="cert-source"
+                  value="path"
+                  checked={form.source === "path"}
+                  onChange={() => setForm({ ...form, source: "path" })}
+                />
+                Mounted file path (e.g. k8s secret volume)
               </label>
             </div>
-            <textarea
-              required
-              rows={6}
-              className="input-field font-mono text-xs"
-              placeholder="-----BEGIN CERTIFICATE-----"
-              value={form.cert_pem}
-              onChange={(e) => setForm({ ...form, cert_pem: e.target.value })}
-            />
           </div>
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <label className="text-sm font-medium text-stone-300">Private Key (PEM)</label>
-              <label className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer">
-                Upload .key / .pem
-                <input type="file" accept=".key,.pem" className="hidden" onChange={(e) => handleFile("key_pem", e)} />
-              </label>
-            </div>
-            <textarea
-              required
-              rows={6}
-              className="input-field font-mono text-xs"
-              placeholder="-----BEGIN PRIVATE KEY-----"
-              value={form.key_pem}
-              onChange={(e) => setForm({ ...form, key_pem: e.target.value })}
-            />
-            <p className="mt-1 text-xs text-stone-600">Stored server-side; never returned over the API after upload.</p>
-          </div>
+          {form.source === "inline" ? (
+            <>
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-sm font-medium text-stone-300">Certificate (PEM)</label>
+                  <label className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer">
+                    Upload .crt / .pem
+                    <input type="file" accept=".crt,.pem,.cer" className="hidden" onChange={(e) => handleFile("cert_pem", e)} />
+                  </label>
+                </div>
+                <textarea
+                  required
+                  rows={6}
+                  className="input-field font-mono text-xs"
+                  placeholder="-----BEGIN CERTIFICATE-----"
+                  value={form.cert_pem}
+                  onChange={(e) => setForm({ ...form, cert_pem: e.target.value })}
+                />
+              </div>
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-sm font-medium text-stone-300">Private Key (PEM)</label>
+                  <label className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer">
+                    Upload .key / .pem
+                    <input type="file" accept=".key,.pem" className="hidden" onChange={(e) => handleFile("key_pem", e)} />
+                  </label>
+                </div>
+                <textarea
+                  required
+                  rows={6}
+                  className="input-field font-mono text-xs"
+                  placeholder="-----BEGIN PRIVATE KEY-----"
+                  value={form.key_pem}
+                  onChange={(e) => setForm({ ...form, key_pem: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-stone-600">Stored server-side; never returned over the API after upload.</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-stone-300">Certificate File Path</label>
+                <input
+                  required
+                  className="input-field font-mono text-xs"
+                  placeholder="/etc/nginx/secrets/wild-psuccso-org-tls/tls.crt"
+                  value={form.cert_path}
+                  onChange={(e) => setForm({ ...form, cert_path: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-stone-300">Private Key File Path</label>
+                <input
+                  required
+                  className="input-field font-mono text-xs"
+                  placeholder="/etc/nginx/secrets/wild-psuccso-org-tls/tls.key"
+                  value={form.key_path}
+                  onChange={(e) => setForm({ ...form, key_path: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-stone-600">
+                  Paths must be readable by nginx inside the pikatunnel pod. Mount the k8s secret as a volumeMount, then point here.
+                  Key rotation is automatic — when the Secret updates, nginx will pick up the new file on its next reload.
+                </p>
+              </div>
+            </>
+          )}
           <div className="flex justify-end gap-3 pt-3">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">{saving ? "Uploading..." : "Upload"}</button>

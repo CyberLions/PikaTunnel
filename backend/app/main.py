@@ -20,6 +20,10 @@ _ADDITIVE_COLUMNS: list[str] = [
     "ALTER TABLE IF EXISTS proxy_routes ADD COLUMN IF NOT EXISTS ssl_cert_name VARCHAR(255)",
     "ALTER TABLE IF EXISTS cluster_settings ADD COLUMN IF NOT EXISTS k8s_loadbalancer_service_name VARCHAR(255)",
     "ALTER TABLE IF EXISTS vpn_configs ADD COLUMN IF NOT EXISTS autostart BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE IF EXISTS tls_certificates ALTER COLUMN cert_pem DROP NOT NULL",
+    "ALTER TABLE IF EXISTS tls_certificates ALTER COLUMN key_pem DROP NOT NULL",
+    "ALTER TABLE IF EXISTS tls_certificates ADD COLUMN IF NOT EXISTS cert_path VARCHAR(1024)",
+    "ALTER TABLE IF EXISTS tls_certificates ADD COLUMN IF NOT EXISTS key_path VARCHAR(1024)",
 ]
 
 
