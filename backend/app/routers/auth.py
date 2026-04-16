@@ -95,8 +95,8 @@ async def callback(code: str, provider_id: str, request: Request, db: AsyncSessi
         "admin_group": provider.admin_group or settings.ADMIN_GROUP,
     })
 
-    # Redirect to frontend with token as query param
-    frontend_url = f"/?{urlencode({'token': token})}"
+    # Redirect to frontend login page with token as query param
+    frontend_url = f"/login?{urlencode({'token': token})}"
     return RedirectResponse(frontend_url)
 
 
