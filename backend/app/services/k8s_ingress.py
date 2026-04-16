@@ -182,9 +182,10 @@ async def test_connection(db: AsyncSession) -> dict:
         return {"connected": False, "error": "No cluster settings found"}
 
     def _test():
-        _, core_api = _get_k8s_clients(settings)
-        info = core_api.get_api_versions()
-        return {"connected": True, "version": str(info.server_address_by_client_cid_rs if hasattr(info, 'server_address_by_client_cid_rs') else info.versions)}
+        from kubernetes import client
+        net_api, _ = _get_k8s_clients(settings)
+        version = client.VersionApi(net_api.api_client).get_code()
+        return {"connected": True, "version": version.git_version}
 
     try:
         return await asyncio.to_thread(_test)

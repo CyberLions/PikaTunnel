@@ -21,7 +21,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     curl \
     procps \
+    ca-certificates \
+    gnupg \
+    iptables \
+    iproute2 \
+    openvpn \
     && rm -rf /var/lib/apt/lists/*
+
+# Install pritunl-client (arch-aware: apt for amd64, build from source for arm64)
+RUN arch=$(dpkg --print-architecture) && \
+    if [ "$arch" = "amd64" ]; then \
+        echo "deb https://repo.pritunl.com/stable/apt noble main" > /etc/apt/sources.list.d/pritunl.list && \
+        gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys 7568D9BB55FF9E5287D586017AE645C0CF8E292A && \
+        gpg --armor --export 7568D9BB55FF9E5287D586017AE645C0CF8E292A | tee /etc/apt/trusted.gpg.d/pritunl.asc && \
+        apt-get update && \
+        apt-get install -y --no-install-recommends pritunl-client-electron && \
+        rm -rf /var/lib/apt/lists/*; \
+    elif [ "$arch" = "arm64" ]; then \
+        curl -LO https://golang.org/dl/go1.22.2.linux-arm64.tar.gz && \
+        tar -C /usr/local -xzf go1.22.2.linux-arm64.tar.gz && \
+        rm go1.22.2.linux-arm64.tar.gz && \
+        export PATH=$PATH:/usr/local/go/bin && \
+        go install github.com/pritunl/pritunl-client-electron/cli@latest && \
+        go install github.com/pritunl/pritunl-client-electron/service@latest && \
+        cp /root/go/bin/service /usr/bin/pritunl-client-service && \
+        cp /root/go/bin/cli /usr/bin/pritunl-client && \
+        rm -rf /usr/local/go /root/go; \
+    else \
+        echo "Unsupported architecture: $arch" && exit 1; \
+    fi
 
 # Install Python dependencies
 WORKDIR /app
