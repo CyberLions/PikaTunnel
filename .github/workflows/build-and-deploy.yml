@@ -70,31 +70,67 @@ jobs:
           cluster=local
           token=${{ secrets.RANCHER_TOKEN }}
 
-          # Use the Rancher Steve API's built-in `redeploy` action instead of
-          # GET→sed→PUT. Posting to ?action=redeploy triggers Rancher to bump
-          # the pod template annotation server-side, so we don't have to
-          # round-trip the full resource (which was losing metadata.resourceVersion).
+          command -v jq >/dev/null 2>&1 || { echo "jq is required on the runner"; exit 1; }
+
+          # GET the Deployment through Rancher's Steve API, update the pod
+          # template's restartedAt annotation + cattle.io/timestamp with jq
+          # (preserving metadata.resourceVersion), then PUT the modified
+          # resource back. This is the working pattern that the Telaeris
+          # workflow uses, but with jq instead of sed so we can't silently
+          # drop fields or corrupt the body via stderr merging.
           redeploy() {
               local namespace=$1
               local app=$2
-              local http_code body
+              local endpoint now body updated resp http_code rv
+
+              endpoint="$url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app"
+              now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
               body=$(mktemp)
+              updated=$(mktemp)
+              resp=$(mktemp)
+              trap 'rm -f "$body" "$updated" "$resp"' RETURN
+
               http_code=$(curl -k -sS -u "$token" \
-                -o "$body" -w '%{http_code}' \
-                -X POST \
-                -H 'Accept: application/json' \
-                -H 'Content-Length: 0' \
-                "$url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app?action=redeploy")
+                  -o "$body" -w '%{http_code}' \
+                  -H 'Accept: application/json' \
+                  "$endpoint")
+              if [ "$http_code" -ne 200 ]; then
+                  echo "GET $namespace/$app failed (HTTP $http_code):"
+                  cat "$body"
+                  return 1
+              fi
+
+              rv=$(jq -r '.metadata.resourceVersion // empty' "$body")
+              if [ -z "$rv" ]; then
+                  echo "GET response has no metadata.resourceVersion; cannot update. Body was:"
+                  cat "$body"
+                  return 1
+              fi
+              echo "Got $namespace/$app @ resourceVersion=$rv"
+
+              jq --arg now "$now" '
+                  (.metadata.annotations //= {}) |
+                  .metadata.annotations["cattle.io/timestamp"] = $now |
+                  (.spec.template.metadata //= {}) |
+                  (.spec.template.metadata.annotations //= {}) |
+                  .spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"] = $now
+              ' "$body" > "$updated"
+
+              http_code=$(curl -k -sS -u "$token" \
+                  -o "$resp" -w '%{http_code}' \
+                  -X PUT \
+                  -H 'Accept: application/json' \
+                  -H 'Content-Type: application/json' \
+                  --data-binary "@$updated" \
+                  "$endpoint")
 
               if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
                   echo "Redeployed $namespace/$app (HTTP $http_code)"
-              else
-                  echo "Redeploy FAILED for $namespace/$app (HTTP $http_code):"
-                  cat "$body"
-                  rm -f "$body"
-                  exit 1
+                  return 0
               fi
-              rm -f "$body"
+              echo "PUT $namespace/$app failed (HTTP $http_code):"
+              cat "$resp"
+              return 1
           }
 
           branch=${{ steps.extract_branch.outputs.branch }}
