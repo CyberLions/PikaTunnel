@@ -1,5 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { listRoutes, createRoute, updateRoute, deleteRoute, syncIngress } from "../api/routes";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  listRoutes, createRoute, updateRoute, deleteRoute, syncIngress,
+  exportRoutesCsv, importRoutesCsv,
+  type ImportResult,
+} from "../api/routes";
 import { reloadNginx } from "../api/nginx";
 import type { ProxyRoute } from "../types";
 import DataTable from "../components/DataTable";
@@ -61,6 +65,41 @@ export default function Routes() {
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleExport() {
+    try {
+      await exportRoutesCsv();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const result = await importRoutesCsv(text);
+      setImportResult(result);
+      await reloadNginx().catch(() => {});
+      await load();
+    } catch (err) {
+      setImportResult({
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        errors: [err instanceof Error ? err.message : String(err)],
+      });
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function load() {
     try {
@@ -198,8 +237,51 @@ export default function Routes() {
           <h1 className="text-2xl font-bold text-stone-100">HTTP Routes</h1>
           <p className="text-sm text-stone-500 mt-1">Manage your reverse proxy routes</p>
         </div>
-        <button onClick={openCreate} className="btn-primary">Add Route</button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="btn-secondary"
+          >
+            {importing ? "Importing..." : "Import CSV"}
+          </button>
+          <button onClick={handleExport} className="btn-secondary">Export CSV</button>
+          <button onClick={openCreate} className="btn-primary">Add Route</button>
+        </div>
       </div>
+
+      {importResult && (
+        <div className="mb-6 rounded-md border border-stone-800 bg-neutral-950 p-4">
+          <div className="flex items-start justify-between">
+            <div className="text-sm text-stone-300">
+              <span className="font-semibold text-stone-100">Import complete.</span>{" "}
+              <span className="text-emerald-400">{importResult.created} created</span>
+              {", "}
+              <span className="text-orange-400">{importResult.updated} updated</span>
+              {", "}
+              <span className="text-stone-500">{importResult.skipped} skipped</span>
+            </div>
+            <button onClick={() => setImportResult(null)} className="text-xs text-stone-500 hover:text-stone-300">dismiss</button>
+          </div>
+          {importResult.errors.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs font-mono text-red-400">
+              {importResult.errors.slice(0, 20).map((err, i) => (
+                <li key={i}>{err}</li>
+              ))}
+              {importResult.errors.length > 20 && (
+                <li className="text-stone-500">… {importResult.errors.length - 20} more</li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
 
       {routes.length === 0 ? (
         <EmptyState title="No routes yet" description="Create your first HTTP proxy route to get started." action={{ label: "Add Route", onClick: openCreate }} />

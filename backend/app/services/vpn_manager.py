@@ -152,15 +152,30 @@ async def _ovpn_start(ovpn_text: str) -> bool:
     return True
 
 
-def _ovpn_status() -> str:
+async def _ovpn_running() -> bool:
     pid = _ovpn_read_pid()
-    if not pid or not _pid_alive(pid):
-        return "disconnected"
+    if pid and _pid_alive(pid):
+        return True
+    # Pidfile might not have been written yet, or got stripped on a crash
+    # restart where the daemon survived. pgrep is the ground truth inside
+    # this container's PID namespace.
+    rc, _, _ = await _run("pgrep", "-x", "openvpn")
+    return rc == 0
+
+
+async def _ovpn_read_log() -> str:
     try:
-        log = OVPN_LOG.read_text(errors="ignore")
+        return OVPN_LOG.read_text(errors="ignore")
     except OSError:
-        return "connecting"
-    if "Initialization Sequence Completed" in log:
+        pass
+    rc, out, _ = await _run_priv("cat", str(OVPN_LOG))
+    return out if rc == 0 else ""
+
+
+async def _ovpn_status() -> str:
+    if not await _ovpn_running():
+        return "disconnected"
+    if "Initialization Sequence Completed" in await _ovpn_read_log():
         return "connected"
     return "connecting"
 
@@ -286,7 +301,7 @@ async def get_logs(config: VPNConfig, tail_lines: int = 500) -> str:
     detected = _detect_protocol(config.config_data or {})
     protocol = detected[0] if detected else None
 
-    if protocol == "openvpn" or (protocol is None and _ovpn_read_pid()):
+    if protocol == "openvpn" or (protocol is None and await _ovpn_running()):
         rc, out, err = await _run_priv("cat", str(OVPN_LOG))
         if rc != 0:
             return f"(no openvpn log available: {err.strip() or 'not started yet'})"
@@ -316,9 +331,9 @@ async def get_status(config: VPNConfig) -> str:
     if protocol == "wireguard":
         return await _wg_status()
     if protocol == "openvpn":
-        return _ovpn_status()
-    if _ovpn_read_pid():
-        return _ovpn_status()
+        return await _ovpn_status()
+    if await _ovpn_running():
+        return await _ovpn_status()
     if await _wg_iface_exists():
         return await _wg_status()
     return "disconnected"

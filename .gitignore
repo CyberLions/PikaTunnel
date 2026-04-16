@@ -44,3 +44,6 @@ Thumbs.db
 
 # Alembic
 alembic/versions/__pycache__/
+
+# Exports
+exports/
