@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { listCerts, createCert, deleteCert } from "../api/certs";
+import { listCerts, createCert, updateCert, deleteCert, getCert } from "../api/certs";
 import type { TLSCertificateSummary } from "../types";
 import Modal from "../components/Modal";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -30,6 +30,7 @@ export default function Certs() {
   const [certs, setCerts] = useState<TLSCertificateSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -48,9 +49,30 @@ export default function Certs() {
   }, []);
 
   function openCreate() {
+    setEditingId(null);
     setForm(emptyForm);
     setError(null);
     setModalOpen(true);
+  }
+
+  async function openEdit(id: string) {
+    setError(null);
+    try {
+      const cert = await getCert(id);
+      setEditingId(id);
+      setForm({
+        name: cert.name,
+        description: cert.description || "",
+        source: cert.source,
+        cert_pem: cert.cert_pem || "",
+        key_pem: "", // never returned; blank unless user wants to rotate
+        cert_path: cert.cert_path || "",
+        key_path: cert.key_path || "",
+      });
+      setModalOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function handleFile(
@@ -69,7 +91,24 @@ export default function Certs() {
     setSaving(true);
     setError(null);
     try {
-      if (form.source === "path") {
+      if (editingId) {
+        // Edit: send only fields appropriate for the chosen source.
+        const payload: {
+          description?: string;
+          cert_pem?: string;
+          key_pem?: string;
+          cert_path?: string;
+          key_path?: string;
+        } = { description: form.description };
+        if (form.source === "path") {
+          payload.cert_path = form.cert_path;
+          payload.key_path = form.key_path;
+        } else {
+          if (form.cert_pem) payload.cert_pem = form.cert_pem;
+          if (form.key_pem) payload.key_pem = form.key_pem;
+        }
+        await updateCert(editingId, payload);
+      } else if (form.source === "path") {
         await createCert({
           name: form.name,
           description: form.description,
@@ -85,6 +124,7 @@ export default function Certs() {
         });
       }
       setModalOpen(false);
+      setEditingId(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -137,7 +177,10 @@ export default function Certs() {
             <div key={c.id} className="card">
               <div className="flex items-start justify-between mb-2">
                 <h3 className="font-bold text-stone-100 break-all">{c.name}</h3>
-                <button onClick={() => setConfirmDelete(c.id)} className="text-sm font-medium text-red-400 hover:text-red-300">Delete</button>
+                <div className="flex gap-3">
+                  <button onClick={() => openEdit(c.id)} className="text-sm font-medium text-orange-400 hover:text-orange-300">Edit</button>
+                  <button onClick={() => setConfirmDelete(c.id)} className="text-sm font-medium text-red-400 hover:text-red-300">Delete</button>
+                </div>
               </div>
               {c.description && <p className="text-sm text-stone-400 mb-2">{c.description}</p>}
               <p className="text-xs text-stone-500">
@@ -164,18 +207,23 @@ export default function Certs() {
         onCancel={() => setConfirmDelete(null)}
       />
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Upload TLS Certificate">
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); setEditingId(null); }} title={editingId ? "Edit TLS Certificate" : "Upload TLS Certificate"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-stone-300">Name</label>
             <input
               required
-              className="input-field"
+              disabled={!!editingId}
+              className="input-field disabled:opacity-60 disabled:cursor-not-allowed"
               placeholder="wild-psuccso-org-tls"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
-            <p className="mt-1 text-xs text-stone-600">Unique identifier. Routes reference this value in <code>ssl_cert_name</code>.</p>
+            <p className="mt-1 text-xs text-stone-600">
+              {editingId
+                ? "Name is immutable — routes reference this cert by name. Delete + recreate to rename."
+                : <>Unique identifier. Routes reference this value in <code>ssl_cert_name</code>.</>}
+            </p>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-stone-300">Description</label>
@@ -222,10 +270,10 @@ export default function Certs() {
                   </label>
                 </div>
                 <textarea
-                  required
+                  required={!editingId}
                   rows={6}
                   className="input-field font-mono text-xs"
-                  placeholder="-----BEGIN CERTIFICATE-----"
+                  placeholder={editingId ? "Leave blank to keep existing cert" : "-----BEGIN CERTIFICATE-----"}
                   value={form.cert_pem}
                   onChange={(e) => setForm({ ...form, cert_pem: e.target.value })}
                 />
@@ -239,14 +287,17 @@ export default function Certs() {
                   </label>
                 </div>
                 <textarea
-                  required
+                  required={!editingId}
                   rows={6}
                   className="input-field font-mono text-xs"
-                  placeholder="-----BEGIN PRIVATE KEY-----"
+                  placeholder={editingId ? "Leave blank to keep existing key" : "-----BEGIN PRIVATE KEY-----"}
                   value={form.key_pem}
                   onChange={(e) => setForm({ ...form, key_pem: e.target.value })}
                 />
-                <p className="mt-1 text-xs text-stone-600">Stored server-side; never returned over the API after upload.</p>
+                <p className="mt-1 text-xs text-stone-600">
+                  Stored server-side; never returned over the API.
+                  {editingId && " Leave blank to keep the current key."}
+                </p>
               </div>
             </>
           ) : (
@@ -279,7 +330,7 @@ export default function Certs() {
           )}
           <div className="flex justify-end gap-3 pt-3">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">{saving ? "Uploading..." : "Upload"}</button>
+            <button type="submit" disabled={saving} className="btn-primary">{saving ? (editingId ? "Saving..." : "Uploading...") : (editingId ? "Save" : "Upload")}</button>
           </div>
         </form>
       </Modal>

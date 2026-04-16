@@ -6,6 +6,8 @@ import {
 } from "../api/routes";
 import { reloadNginx } from "../api/nginx";
 import { syncAllIngresses } from "../api/cluster";
+import { listCerts } from "../api/certs";
+import type { TLSCertificateSummary } from "../types";
 import type { ProxyRoute } from "../types";
 import DataTable from "../components/DataTable";
 import Modal from "../components/Modal";
@@ -74,6 +76,7 @@ export default function Routes() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [syncingRowId, setSyncingRowId] = useState<string | null>(null);
+  const [certs, setCerts] = useState<TLSCertificateSummary[]>([]);
 
   async function handleSyncAll() {
     setSyncing(true);
@@ -148,6 +151,7 @@ export default function Routes() {
 
   useEffect(() => {
     load();
+    listCerts().then(setCerts).catch(() => {});
   }, []);
 
   function openCreate() {
@@ -396,15 +400,28 @@ export default function Routes() {
             </label>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-stone-300">Uploaded Cert Name (optional)</label>
-            <input
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">TLS Certificate</label>
+            <select
               className="input-field"
-              placeholder="e.g. wild-psuccso-org-tls"
               value={form.ssl_cert_name}
               onChange={(e) => setForm({ ...form, ssl_cert_name: e.target.value })}
-            />
+            >
+              <option value="">— none (use path fields or no TLS) —</option>
+              {certs.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                  {c.source === "path" ? " (mounted)" : " (inline)"}
+                  {c.description ? ` — ${c.description}` : ""}
+                </option>
+              ))}
+              {form.ssl_cert_name && !certs.some((c) => c.name === form.ssl_cert_name) && (
+                <option value={form.ssl_cert_name}>
+                  {form.ssl_cert_name} (missing — upload in TLS Certificates)
+                </option>
+              )}
+            </select>
             <p className="mt-1 text-xs text-stone-600">
-              Reference a cert uploaded under <code>TLS Certificates</code>. Leave empty to use path fields below (or no TLS).
+              Pick a cert uploaded under <code>TLS Certificates</code>. Selecting one auto-enables SSL and makes nginx listen on 443 for this host.
             </p>
           </div>
           {form.ssl_enabled && !form.ssl_cert_name && (

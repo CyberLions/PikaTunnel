@@ -11,6 +11,47 @@ logger = logging.getLogger(__name__)
 
 TLS_DIR = Path("/var/run/pikatunnel/tls")
 
+# Match vpn_manager: in dev containers we run as vscode and the /var/run
+# parent isn't ours, so fall back to `sudo -n` for privileged filesystem ops.
+_SUDO: list[str] = [] if os.geteuid() == 0 else ["sudo", "-n"]
+
+
+async def _run_priv(*args: str) -> tuple[int, str, str]:
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *_SUDO, *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        return proc.returncode, stdout.decode(errors="ignore"), stderr.decode(errors="ignore")
+    except FileNotFoundError:
+        return 1, "", f"{args[0]} not found"
+
+
+async def _ensure_tls_dir() -> None:
+    """Create TLS_DIR, escalating to `sudo -n mkdir/chown` when the parent
+    (e.g. /var/run in a dev container or a container running as non-root)
+    isn't writable by the current user."""
+    if TLS_DIR.exists() and os.access(TLS_DIR, os.W_OK):
+        return
+    try:
+        TLS_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(TLS_DIR, 0o700)
+        except OSError:
+            pass
+        return
+    except PermissionError:
+        pass
+    rc, _, err = await _run_priv("mkdir", "-p", str(TLS_DIR))
+    if rc != 0:
+        logger.error("Failed to mkdir %s: %s", TLS_DIR, err.strip())
+        raise PermissionError(f"cannot create {TLS_DIR}: {err.strip()}")
+    # Make the parent pikatunnel dir owned by us so future mkdirs don't need sudo.
+    await _run_priv("chown", "-R", f"{os.getuid()}:{os.getgid()}", str(TLS_DIR.parent))
+    await _run_priv("chmod", "700", str(TLS_DIR))
+
 
 async def _materialize_certs(db: AsyncSession) -> dict[str, tuple[str, str]]:
     """Return mapping name -> (cert_path, key_path).
@@ -19,11 +60,7 @@ async def _materialize_certs(db: AsyncSession) -> dict[str, tuple[str, str]]:
     paths directly so rotation happens naturally when the underlying k8s
     Secret updates. For inline certs, PEM bodies get written under TLS_DIR.
     """
-    TLS_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        os.chmod(TLS_DIR, 0o700)
-    except OSError:
-        pass
+    await _ensure_tls_dir()
 
     result = await db.execute(select(TLSCertificate))
     certs = result.scalars().all()

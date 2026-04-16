@@ -27,61 +27,68 @@ _ADDITIVE_COLUMNS: list[str] = [
 ]
 
 
-# Arbitrary key; chosen so it won't collide with other advisory locks in the app.
-_AUTOSTART_LOCK_ID = 918_293_841
+# Arbitrary keys; chosen so they won't collide with other advisory locks.
+_AUTOSTART_LOCK_ID = 918_293_841  # xact lock for reservation inside one check
+_WATCHER_TICK_SECS = 30
 
 
-async def _reserve_autostart_target() -> "uuid.UUID | None":  # type: ignore[name-defined]
-    """Atomically pick (and mark 'connecting') exactly one VPN to autostart.
+async def _supervise_autostart_once() -> None:
+    """One iteration of the VPN watcher: start or reconnect if needed.
 
-    Returns the target's id, or None if there's nothing to start or another
-    worker already reserved it. Uses a transactional advisory lock so multiple
-    uvicorn workers can't race into autostart() in parallel.
+    Uses a transactional advisory lock to ensure only one uvicorn worker runs
+    the check at a time, and atomically reserves the target (flipping status
+    to 'connecting') before releasing the lock so a parallel iteration on
+    another worker can't double-reconnect.
     """
     from sqlalchemy import select
     from app.database import async_session
     from app.models import VPNConfig
+    from app.services import vpn_manager
+
+    target_id = None
+    target_name = ""
+    reason = ""
 
     async with async_session() as db:
         async with db.begin():
-            # Blocking lock; released automatically at transaction end.
-            await db.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": _AUTOSTART_LOCK_ID})
+            got_lock = (await db.execute(
+                text("SELECT pg_try_advisory_xact_lock(:id)"), {"id": _AUTOSTART_LOCK_ID},
+            )).scalar()
+            if not got_lock:
+                return  # another worker is checking right now
 
             result = await db.execute(
                 select(VPNConfig).where(VPNConfig.enabled == True, VPNConfig.autostart == True)  # noqa: E712
             )
             configs = list(result.scalars().all())
             if not configs:
-                return None
-
-            target = configs[0]
+                return
             if len(configs) > 1:
                 names = ", ".join(c.name for c in configs)
-                logger.warning("Multiple VPN configs marked autostart (%s); only starting %s", names, target.name)
+                logger.warning("Multiple VPN configs marked autostart (%s); supervising only %s",
+                               names, configs[0].name)
+            target = configs[0]
 
-            # If another worker in a previous run already flipped status,
-            # don't start a second one that would _stop_all() the first.
-            if target.status in ("connecting", "connected"):
-                logger.info("Autostart skipped — '%s' already in state %s", target.name, target.status)
-                return None
+            live = await vpn_manager.get_status(target)
+            if live == "connected":
+                if target.status != "connected":
+                    target.status = "connected"
+                    db.add(target)
+                return
 
+            # live is not 'connected' — decide whether to (re)connect.
+            if target.status == "connecting":
+                # Another reconnect is already in flight; let it finish.
+                return
+
+            reason = "initial start" if target.status == "disconnected" and live == "disconnected" else \
+                     f"live={live}, db={target.status}"
             target.status = "connecting"
             db.add(target)
-            # commit happens at end of db.begin() — lock released, flag persisted
-            return target.id
+            target_id = target.id
+            target_name = target.name
+        # xact lock released here on commit
 
-
-async def autostart_vpns() -> None:
-    """Pick one autostart target and connect it. Safe to run from multiple workers."""
-    from app.database import async_session
-    from app.models import VPNConfig
-    from app.services import vpn_manager
-
-    try:
-        target_id = await _reserve_autostart_target()
-    except Exception as e:
-        logger.exception("Autostart reservation failed: %s", e)
-        return
     if target_id is None:
         return
 
@@ -89,12 +96,23 @@ async def autostart_vpns() -> None:
         attached = await db.get(VPNConfig, target_id)
         if not attached:
             return
-        logger.info("Autostarting VPN '%s'", attached.name)
+        logger.info("VPN watcher: (re)connecting '%s' (%s)", target_name, reason)
         try:
             status = await vpn_manager.connect(attached, db)
-            logger.info("Autostart result for '%s': %s", attached.name, status)
+            logger.info("VPN watcher: '%s' -> %s", target_name, status)
         except Exception as e:
-            logger.exception("Autostart failed for '%s': %s", attached.name, e)
+            logger.exception("VPN watcher: reconnect failed for '%s': %s", target_name, e)
+
+
+async def vpn_watcher() -> None:
+    """Long-running task: supervise autostart VPNs, reconnect on drop."""
+    # First pass runs immediately so boot-time autostart still kicks in right away.
+    while True:
+        try:
+            await _supervise_autostart_once()
+        except Exception as e:
+            logger.exception("VPN watcher iteration failed: %s", e)
+        await asyncio.sleep(_WATCHER_TICK_SECS)
 
 
 async def ensure_database_schema() -> None:
@@ -115,11 +133,14 @@ async def ensure_database_schema() -> None:
 async def lifespan(app: FastAPI):
     logger.info("Starting pikatunnel (env=%s)", settings.ENVIRONMENT)
     await ensure_database_schema()
-    # Fire-and-forget: openvpn's --daemon init can block for seconds on slow
-    # upstreams; running it inside lifespan would stall the HTTP server.
-    task = asyncio.create_task(autostart_vpns())
-    app.state.autostart_task = task  # keep a ref so it doesn't get GC'd
+    # Fire-and-forget: the watcher does the initial autostart on its first
+    # iteration, then polls every 30s to reconnect on unintentional drops.
+    # Multiple uvicorn workers can all run this safely — a PG advisory lock
+    # inside _supervise_autostart_once elects a single active checker.
+    task = asyncio.create_task(vpn_watcher())
+    app.state.vpn_watcher_task = task
     yield
+    task.cancel()
     await engine.dispose()
 
 
