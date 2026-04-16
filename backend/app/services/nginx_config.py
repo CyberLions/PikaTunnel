@@ -115,16 +115,8 @@ async def generate_and_write(db: AsyncSession) -> tuple[str, str]:
     stream_config = _generate_stream_config(stream_routes)
 
     try:
-        proc = await asyncio.create_subprocess_shell(
-            f"sudo tee {settings.NGINX_CONFIG_PATH} > /dev/null",
-            stdin=asyncio.subprocess.PIPE,
-        )
-        await proc.communicate(input=http_config.encode())
-        proc = await asyncio.create_subprocess_shell(
-            f"sudo tee {settings.NGINX_STREAM_CONFIG_PATH} > /dev/null",
-            stdin=asyncio.subprocess.PIPE,
-        )
-        await proc.communicate(input=stream_config.encode())
+        Path(settings.NGINX_CONFIG_PATH).write_text(http_config)
+        Path(settings.NGINX_STREAM_CONFIG_PATH).write_text(stream_config)
         logger.info("Wrote nginx configs to disk")
     except OSError as e:
         logger.warning("Failed to write nginx configs: %s", e)
@@ -135,7 +127,7 @@ async def generate_and_write(db: AsyncSession) -> tuple[str, str]:
 async def reload_nginx() -> bool:
     try:
         proc = await asyncio.create_subprocess_exec(
-            "sudo", "nginx", "-s", "reload",
+            "nginx", "-s", "reload",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -159,7 +151,7 @@ async def generate_and_reload(db: AsyncSession) -> tuple[str, str]:
 async def get_nginx_status() -> dict:
     try:
         proc = await asyncio.create_subprocess_exec(
-            "sudo", "nginx", "-t",
+            "nginx", "-t",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

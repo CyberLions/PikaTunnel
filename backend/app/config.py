@@ -31,7 +31,12 @@ class Settings(BaseSettings):
     ADMIN_GROUP: str = "admin"
     AUTH_PROVIDERS: list[AuthProviderSettings] = []
 
-    model_config = {"env_prefix": "", "case_sensitive": True}
+    model_config = {
+        "env_prefix": "",
+        "case_sensitive": True,
+        "env_file": ("../.env", ".env"),
+        "extra": "ignore",
+    }
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
