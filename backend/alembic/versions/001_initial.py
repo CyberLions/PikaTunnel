@@ -54,7 +54,7 @@ def upgrade() -> None:
         "vpn_configs",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
-        sa.Column("vpn_type", sa.String(50), server_default="pritunl"),
+        sa.Column("vpn_type", sa.String(50), server_default="openvpn"),
         sa.Column("enabled", sa.Boolean(), server_default="false"),
         sa.Column("config_data", sa.JSON(), server_default="{}"),
         sa.Column("status", sa.String(50), server_default="disconnected"),

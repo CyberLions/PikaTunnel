@@ -72,7 +72,7 @@ class VPNConfig(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    vpn_type: Mapped[str] = mapped_column(String(50), default="pritunl")
+    vpn_type: Mapped[str] = mapped_column(String(50), default="openvpn")
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     config_data: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(50), default="disconnected")

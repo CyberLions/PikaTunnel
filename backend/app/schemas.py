@@ -118,7 +118,7 @@ class StreamRouteResponse(BaseModel):
 
 class VPNConfigCreate(BaseModel):
     name: str
-    vpn_type: str = "pritunl"
+    vpn_type: str = "openvpn"
     enabled: bool = False
     config_data: dict = {}
 

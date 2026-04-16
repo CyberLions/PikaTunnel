@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import signal
 import time
 from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,10 +14,12 @@ OVPN_PID = RUN_DIR / "openvpn.pid"
 OVPN_LOG = RUN_DIR / "openvpn.log"
 
 WG_IFACE = "pika0"
-WG_CONF = Path(f"/etc/wireguard/{WG_IFACE}.conf")
+WG_CONF = RUN_DIR / f"{WG_IFACE}.conf"
 
-# WG is considered connected if a handshake happened within this many seconds.
 WG_HANDSHAKE_FRESH_SECS = 180
+
+# Prod container runs as root; dev container runs as vscode w/ passwordless sudo.
+SUDO: list[str] = [] if os.geteuid() == 0 else ["sudo", "-n"]
 
 
 async def _run(*args: str) -> tuple[int, str, str]:
@@ -35,8 +36,23 @@ async def _run(*args: str) -> tuple[int, str, str]:
         return 1, "", f"{args[0]} not found"
 
 
+async def _run_priv(*args: str) -> tuple[int, str, str]:
+    return await _run(*SUDO, *args)
+
+
+async def _ensure_run_dir() -> None:
+    if RUN_DIR.exists() and os.access(RUN_DIR, os.W_OK):
+        return
+    try:
+        await _ensure_run_dir()
+        return
+    except PermissionError:
+        pass
+    await _run_priv("mkdir", "-p", str(RUN_DIR))
+    await _run_priv("chown", f"{os.getuid()}:{os.getgid()}", str(RUN_DIR))
+
+
 def _detect_protocol(config_data: dict) -> tuple[str, str] | None:
-    """Return (protocol, config_text) or None if nothing usable is present."""
     wg = config_data.get("wg_config")
     ovpn = config_data.get("ovpn_config")
     if wg:
@@ -48,6 +64,10 @@ def _detect_protocol(config_data: dict) -> tuple[str, str] | None:
 
 # ---- OpenVPN ----------------------------------------------------------------
 
+def _pid_alive(pid: int) -> bool:
+    return Path(f"/proc/{pid}").exists()
+
+
 def _ovpn_read_pid() -> int | None:
     try:
         return int(OVPN_PID.read_text().strip())
@@ -55,30 +75,16 @@ def _ovpn_read_pid() -> int | None:
         return None
 
 
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
-
-
 async def _ovpn_stop() -> None:
     pid = _ovpn_read_pid()
     if pid and _pid_alive(pid):
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except OSError:
-            pass
+        await _run_priv("kill", "-TERM", str(pid))
         for _ in range(20):
             await asyncio.sleep(0.5)
             if not _pid_alive(pid):
                 break
         else:
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
+            await _run_priv("kill", "-KILL", str(pid))
     for p in (OVPN_PID, OVPN_LOG, OVPN_CONF):
         try:
             p.unlink()
@@ -87,9 +93,9 @@ async def _ovpn_stop() -> None:
 
 
 async def _ovpn_start(ovpn_text: str) -> bool:
-    RUN_DIR.mkdir(parents=True, exist_ok=True)
+    await _ensure_run_dir()
     OVPN_CONF.write_text(ovpn_text)
-    rc, _, err = await _run(
+    rc, _, err = await _run_priv(
         "openvpn",
         "--config", str(OVPN_CONF),
         "--daemon",
@@ -99,10 +105,9 @@ async def _ovpn_start(ovpn_text: str) -> bool:
     if rc != 0:
         logger.error("openvpn failed to start: %s", err)
         return False
-    # Give the daemon a beat to write the pidfile.
     for _ in range(10):
         if OVPN_PID.exists():
-            return True
+            break
         await asyncio.sleep(0.2)
     return True
 
@@ -129,7 +134,7 @@ async def _wg_iface_exists() -> bool:
 
 async def _wg_stop() -> None:
     if await _wg_iface_exists():
-        await _run("wg-quick", "down", WG_IFACE)
+        await _run_priv("wg-quick", "down", str(WG_CONF))
     try:
         WG_CONF.unlink()
     except OSError:
@@ -137,10 +142,10 @@ async def _wg_stop() -> None:
 
 
 async def _wg_start(wg_text: str) -> bool:
-    WG_CONF.parent.mkdir(parents=True, exist_ok=True)
+    await _ensure_run_dir()
     WG_CONF.write_text(wg_text)
     os.chmod(WG_CONF, 0o600)
-    rc, _, err = await _run("wg-quick", "up", WG_IFACE)
+    rc, _, err = await _run_priv("wg-quick", "up", str(WG_CONF))
     if rc != 0:
         logger.error("wg-quick up failed: %s", err)
         return False
@@ -150,7 +155,7 @@ async def _wg_start(wg_text: str) -> bool:
 async def _wg_status() -> str:
     if not await _wg_iface_exists():
         return "disconnected"
-    rc, out, _ = await _run("wg", "show", WG_IFACE, "latest-handshakes")
+    rc, out, _ = await _run_priv("wg", "show", WG_IFACE, "latest-handshakes")
     if rc != 0:
         return "connecting"
     now = int(time.time())
@@ -221,6 +226,30 @@ async def disconnect(config: VPNConfig, db: AsyncSession) -> str:
     return "disconnected"
 
 
+async def get_logs(config: VPNConfig, tail_lines: int = 500) -> str:
+    detected = _detect_protocol(config.config_data or {})
+    protocol = detected[0] if detected else None
+
+    if protocol == "openvpn" or (protocol is None and _ovpn_read_pid()):
+        rc, out, err = await _run_priv("cat", str(OVPN_LOG))
+        if rc != 0:
+            return f"(no openvpn log available: {err.strip() or 'not started yet'})"
+        lines = out.splitlines()
+        if len(lines) > tail_lines:
+            lines = lines[-tail_lines:]
+        return "\n".join(lines)
+
+    if protocol == "wireguard" or await _wg_iface_exists():
+        sections: list[str] = []
+        rc, out, _ = await _run_priv("wg", "show", WG_IFACE)
+        sections.append(f"$ wg show {WG_IFACE}\n{out if rc == 0 else '(interface not up)'}")
+        rc, out, _ = await _run("ip", "addr", "show", WG_IFACE)
+        sections.append(f"$ ip addr show {WG_IFACE}\n{out if rc == 0 else '(interface not found)'}")
+        return "\n\n".join(sections)
+
+    return "(no active VPN session; connect first to generate logs)"
+
+
 async def get_status(config: VPNConfig) -> str:
     detected = _detect_protocol(config.config_data or {})
     protocol = detected[0] if detected else None
@@ -228,7 +257,6 @@ async def get_status(config: VPNConfig) -> str:
         return await _wg_status()
     if protocol == "openvpn":
         return _ovpn_status()
-    # Fall back to whichever is actually running.
     if _ovpn_read_pid():
         return _ovpn_status()
     if await _wg_iface_exists():

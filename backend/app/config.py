@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     PUBLIC_URL: str | None = None
     VPN_ENABLED: bool = False
-    VPN_TYPE: str = "pritunl"
+    VPN_TYPE: str = "openvpn"
     NGINX_CONFIG_PATH: str = "/etc/nginx/nginx.conf"
     NGINX_STREAM_CONFIG_PATH: str = "/etc/nginx/nginx.stream.conf"
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]

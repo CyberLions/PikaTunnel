@@ -15,7 +15,7 @@
 
 - **HTTP Reverse Proxy** — Create and manage nginx-backed proxy routes with SSL support
 - **TCP/UDP Streaming** — Forward raw stream traffic with optional proxy protocol
-- **VPN Management** — Connect and manage Pritunl, WireGuard, and OpenVPN tunnels
+- **VPN Management** — Connect and manage WireGuard and OpenVPN tunnels
 - **OIDC Authentication** — Secure access with configurable OpenID Connect providers
 - **Nginx Control** — Preview generated configs and reload nginx from the UI
 - **Live Dashboard** — System health, route stats, and service status at a glance

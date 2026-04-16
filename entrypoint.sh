@@ -14,7 +14,7 @@ apachectl start
 log "Starting nginx..."
 nginx
 
-mkdir -p /var/run/pikatunnel /etc/wireguard
+mkdir -p /var/run/pikatunnel
 
 # Start FastAPI backend
 log "Starting uvicorn..."

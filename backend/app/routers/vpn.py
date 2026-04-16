@@ -65,6 +65,15 @@ async def disconnect_vpn(config_id: uuid.UUID, db: AsyncSession = Depends(get_db
     return VPNStatusResponse(id=config.id, name=config.name, vpn_type=config.vpn_type, status=status)
 
 
+@router.get("/config/{config_id}/logs")
+async def vpn_logs(config_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
+    config = await db.get(VPNConfig, config_id)
+    if not config:
+        raise HTTPException(status_code=404, detail="VPN config not found")
+    logs = await vpn_manager.get_logs(config)
+    return {"id": str(config.id), "vpn_type": config.vpn_type, "logs": logs}
+
+
 @router.get("/status", response_model=list[VPNStatusResponse])
 async def vpn_status(db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
     result = await db.execute(select(VPNConfig))

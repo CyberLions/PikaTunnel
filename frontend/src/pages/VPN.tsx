@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, type FormEvent } from "react";
-import { listVPNs, createVPN, updateVPN, deleteVPN, connectVPN, disconnectVPN } from "../api/vpn";
+import { useEffect, useState, useCallback, useRef, type FormEvent } from "react";
+import { listVPNs, createVPN, updateVPN, deleteVPN, connectVPN, disconnectVPN, getVPNLogs } from "../api/vpn";
 import type { VPNConfig } from "../types";
 import Modal from "../components/Modal";
 import StatusBadge from "../components/StatusBadge";
@@ -13,13 +13,15 @@ type FormData = {
   vpn_type: string;
   enabled: boolean;
   ovpn_config: string;
+  wg_config: string;
 };
 
 const emptyForm: FormData = {
   name: "",
-  vpn_type: "pritunl",
+  vpn_type: "openvpn",
   enabled: true,
   ovpn_config: "",
+  wg_config: "",
 };
 
 export default function VPN() {
@@ -32,6 +34,10 @@ export default function VPN() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "info" | "error" } | null>(null);
+  const [logsFor, setLogsFor] = useState<VPNConfig | null>(null);
+  const [logsText, setLogsText] = useState<string>("");
+  const [logsLoading, setLogsLoading] = useState(false);
+  const logsBodyRef = useRef<HTMLPreElement | null>(null);
 
   async function load() {
     try {
@@ -59,6 +65,7 @@ export default function VPN() {
       vpn_type: vpn.vpn_type,
       enabled: vpn.enabled,
       ovpn_config: (vpn.config_data?.ovpn_config as string) || "",
+      wg_config: (vpn.config_data?.wg_config as string) || "",
     });
     setModalOpen(true);
   }
@@ -69,11 +76,15 @@ export default function VPN() {
     e.preventDefault();
     setSaving(true);
     try {
+      const config_data =
+        form.vpn_type === "wireguard"
+          ? { wg_config: form.wg_config }
+          : { ovpn_config: form.ovpn_config };
       const payload = {
         name: form.name,
         vpn_type: form.vpn_type,
         enabled: form.enabled,
-        config_data: { ovpn_config: form.ovpn_config },
+        config_data,
       };
       if (editing) {
         await updateVPN(editing.id, payload);
@@ -113,12 +124,43 @@ export default function VPN() {
     await load();
   }
 
+  const fetchLogs = useCallback(async (id: string) => {
+    try {
+      const res = await getVPNLogs(id);
+      setLogsText(res.logs || "(empty)");
+      requestAnimationFrame(() => {
+        const el = logsBodyRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    } catch (err) {
+      setLogsText(`Error fetching logs: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
+  function openLogs(vpn: VPNConfig) {
+    setLogsFor(vpn);
+    setLogsText("");
+    setLogsLoading(true);
+    fetchLogs(vpn.id).finally(() => setLogsLoading(false));
+  }
+
+  useEffect(() => {
+    if (!logsFor) return;
+    const timer = setInterval(() => fetchLogs(logsFor.id), 3000);
+    return () => clearInterval(timer);
+  }, [logsFor, fetchLogs]);
+
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      setForm({ ...form, ovpn_config: reader.result as string });
+      const text = reader.result as string;
+      if (form.vpn_type === "wireguard") {
+        setForm({ ...form, wg_config: text });
+      } else {
+        setForm({ ...form, ovpn_config: text });
+      }
     };
     reader.readAsText(file);
     e.target.value = "";
@@ -154,6 +196,11 @@ export default function VPN() {
                   {vpn.config_data.ovpn_config.split("\n").find((l) => l.startsWith("remote ")) || "Profile loaded"}
                 </p>
               )}
+              {typeof vpn.config_data?.wg_config === "string" && (
+                <p className="mb-3 text-xs text-stone-600 truncate font-mono">
+                  {vpn.config_data.wg_config.split("\n").find((l) => l.trim().startsWith("Endpoint")) || "Profile loaded"}
+                </p>
+              )}
               <div className="flex gap-2">
                 {vpn.status === "connected" ? (
                   <button
@@ -172,6 +219,7 @@ export default function VPN() {
                     {actionLoading === vpn.id ? "..." : "Connect"}
                   </button>
                 )}
+                <button onClick={() => openLogs(vpn)} className="btn-secondary text-sm">Logs</button>
                 <button onClick={() => openEdit(vpn)} className="btn-secondary text-sm">Edit</button>
                 <button onClick={() => setConfirmDelete(vpn.id)} className="btn-danger text-sm">Delete</button>
               </div>
@@ -192,6 +240,26 @@ export default function VPN() {
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
 
+      <Modal open={logsFor !== null} onClose={() => setLogsFor(null)} title={logsFor ? `Logs — ${logsFor.name}` : "Logs"}>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-stone-500">
+            <span>Auto-refreshing every 3s</span>
+            <button
+              className="text-orange-400 hover:text-orange-300"
+              onClick={() => logsFor && fetchLogs(logsFor.id)}
+            >
+              Refresh now
+            </button>
+          </div>
+          <pre
+            ref={logsBodyRef}
+            className="max-h-[60vh] overflow-auto rounded border border-stone-800 bg-neutral-950 p-3 text-xs font-mono text-stone-300 whitespace-pre-wrap"
+          >
+            {logsLoading && !logsText ? "Loading..." : logsText}
+          </pre>
+        </div>
+      </Modal>
+
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit VPN Config" : "Add VPN Config"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -201,36 +269,59 @@ export default function VPN() {
           <div>
             <label className="mb-1.5 block text-sm font-medium text-stone-300">VPN Type</label>
             <select className="input-field" value={form.vpn_type} onChange={(e) => setForm({ ...form, vpn_type: e.target.value })}>
-              <option value="pritunl">Pritunl</option>
-              <option value="wireguard">WireGuard</option>
               <option value="openvpn">OpenVPN</option>
+              <option value="wireguard">WireGuard</option>
             </select>
           </div>
           <label className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer">
             <input type="checkbox" className="rounded border-stone-600 bg-neutral-900 text-orange-500 focus:ring-orange-500/50" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
             Enabled
           </label>
-          <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <label className="text-sm font-medium text-stone-300">OpenVPN Config</label>
-              <label className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer transition-colors">
-                Upload .ovpn
-                <input type="file" accept=".ovpn,.conf,.tar" className="hidden" onChange={handleFileUpload} />
-              </label>
+          {form.vpn_type === "wireguard" ? (
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-sm font-medium text-stone-300">WireGuard Config</label>
+                <label className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer transition-colors">
+                  Upload .conf
+                  <input type="file" accept=".conf" className="hidden" onChange={handleFileUpload} />
+                </label>
+              </div>
+              <textarea
+                rows={10}
+                className="input-field font-mono text-xs leading-relaxed"
+                placeholder="Paste your WireGuard config here or upload a .conf file..."
+                value={form.wg_config}
+                onChange={(e) => setForm({ ...form, wg_config: e.target.value })}
+              />
+              {form.wg_config && (
+                <p className="mt-1 text-xs text-stone-600">
+                  {form.wg_config.split("\n").length} lines
+                </p>
+              )}
             </div>
-            <textarea
-              rows={10}
-              className="input-field font-mono text-xs leading-relaxed"
-              placeholder="Paste your .ovpn config here or upload a file..."
-              value={form.ovpn_config}
-              onChange={(e) => setForm({ ...form, ovpn_config: e.target.value })}
-            />
-            {form.ovpn_config && (
-              <p className="mt-1 text-xs text-stone-600">
-                {form.ovpn_config.split("\n").length} lines
-              </p>
-            )}
-          </div>
+          ) : (
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-sm font-medium text-stone-300">OpenVPN Config</label>
+                <label className="text-xs text-orange-400 hover:text-orange-300 cursor-pointer transition-colors">
+                  Upload .ovpn
+                  <input type="file" accept=".ovpn,.conf" className="hidden" onChange={handleFileUpload} />
+                </label>
+              </div>
+              <textarea
+                rows={10}
+                className="input-field font-mono text-xs leading-relaxed"
+                placeholder="Paste your .ovpn config here or upload a file..."
+                value={form.ovpn_config}
+                onChange={(e) => setForm({ ...form, ovpn_config: e.target.value })}
+              />
+              {form.ovpn_config && (
+                <p className="mt-1 text-xs text-stone-600">
+                  {form.ovpn_config.split("\n").length} lines
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-3">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving..." : "Save"}</button>

@@ -9,7 +9,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       ENVIRONMENT: production
       VPN_ENABLED: ${VPN_ENABLED:-false}
-      VPN_TYPE: ${VPN_TYPE:-pritunl}
+      VPN_TYPE: ${VPN_TYPE:-openvpn}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
     depends_on:
       db:

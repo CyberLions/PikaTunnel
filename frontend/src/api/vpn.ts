@@ -29,3 +29,7 @@ export function connectVPN(id: string): Promise<VPNConfig> {
 export function disconnectVPN(id: string): Promise<VPNConfig> {
   return post(`/vpn/config/${id}/disconnect`);
 }
+
+export function getVPNLogs(id: string): Promise<{ id: string; vpn_type: string; logs: string }> {
+  return get(`/vpn/config/${id}/logs`);
+}
