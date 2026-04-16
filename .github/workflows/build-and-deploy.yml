@@ -64,27 +64,37 @@ jobs:
 
       - name: Redeploy Rancher
         run: |
+          set -euo pipefail
+
           url='https://rancher.psuccso.org'
           cluster=local
           token=${{ secrets.RANCHER_TOKEN }}
 
+          # Use the Rancher Steve API's built-in `redeploy` action instead of
+          # GET→sed→PUT. Posting to ?action=redeploy triggers Rancher to bump
+          # the pod template annotation server-side, so we don't have to
+          # round-trip the full resource (which was losing metadata.resourceVersion).
           redeploy() {
               local namespace=$1
               local app=$2
-              pod_upgrade_body=$(curl -s -u "$token" \
-              -k $url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app \
-              -X GET \
-              -H 'Accept: application/json' \
-              -H 'Content-Type: application/json' \
-              -H 'Pragma: no-cache' \
-              -H 'Cache-Control: no-cache' 2>&1 | sed  "s/\"cattle\.io\/timestamp\"\:\"[0-9T:Z-]*\"/\"cattle\.io\/timestamp\":\"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"/g")
+              local http_code body
+              body=$(mktemp)
+              http_code=$(curl -k -sS -u "$token" \
+                -o "$body" -w '%{http_code}' \
+                -X POST \
+                -H 'Accept: application/json' \
+                -H 'Content-Length: 0' \
+                "$url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app?action=redeploy")
 
-              curl -u "$token" \
-              -k -s $url/k8s/clusters/$cluster/v1/apps.deployments/$namespace/$app \
-              -X PUT \
-              -H 'Accept: application/json' \
-              -H 'Content-Type: application/json' \
-              --data-binary "$pod_upgrade_body" --compressed
+              if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+                  echo "Redeployed $namespace/$app (HTTP $http_code)"
+              else
+                  echo "Redeploy FAILED for $namespace/$app (HTTP $http_code):"
+                  cat "$body"
+                  rm -f "$body"
+                  exit 1
+              fi
+              rm -f "$body"
           }
 
           branch=${{ steps.extract_branch.outputs.branch }}
