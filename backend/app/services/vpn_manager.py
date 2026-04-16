@@ -15,6 +15,7 @@ OVPN_LOG = RUN_DIR / "openvpn.log"
 
 WG_IFACE = "pika0"
 WG_CONF = RUN_DIR / f"{WG_IFACE}.conf"
+WG_LOG = RUN_DIR / "wireguard.log"
 
 WG_HANDSHAKE_FRESH_SECS = 180
 
@@ -85,7 +86,9 @@ async def _ovpn_stop() -> None:
                 break
         else:
             await _run_priv("kill", "-KILL", str(pid))
-    for p in (OVPN_PID, OVPN_LOG, OVPN_CONF):
+    # Keep OVPN_LOG so failures remain inspectable via the logs UI; it is
+    # truncated on the next start via openvpn's --log flag.
+    for p in (OVPN_PID, OVPN_CONF):
         try:
             p.unlink()
         except OSError:
@@ -95,7 +98,7 @@ async def _ovpn_stop() -> None:
 async def _ovpn_start(ovpn_text: str) -> bool:
     await _ensure_run_dir()
     OVPN_CONF.write_text(ovpn_text)
-    rc, _, err = await _run_priv(
+    rc, out, err = await _run_priv(
         "openvpn",
         "--config", str(OVPN_CONF),
         "--daemon",
@@ -104,6 +107,15 @@ async def _ovpn_start(ovpn_text: str) -> bool:
     )
     if rc != 0:
         logger.error("openvpn failed to start: %s", err)
+        # If openvpn bailed before opening --log, persist what it told us
+        # on stderr/stdout so the logs UI surfaces the reason.
+        try:
+            OVPN_LOG.write_text(
+                f"[pikatunnel] openvpn init failed (rc={rc})\n"
+                f"--- stderr ---\n{err}\n--- stdout ---\n{out}\n"
+            )
+        except OSError:
+            pass
         return False
     for _ in range(10):
         if OVPN_PID.exists():
@@ -132,9 +144,19 @@ async def _wg_iface_exists() -> bool:
     return rc == 0
 
 
+def _append_wg_log(entry: str) -> None:
+    try:
+        with WG_LOG.open("a") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {entry}\n")
+    except OSError:
+        pass
+
+
 async def _wg_stop() -> None:
     if await _wg_iface_exists():
-        await _run_priv("wg-quick", "down", str(WG_CONF))
+        rc, out, err = await _run_priv("wg-quick", "down", str(WG_CONF))
+        _append_wg_log(f"$ wg-quick down (rc={rc})\n{out}{err}")
+    # Config contains a private key — remove it. WG_LOG is retained.
     try:
         WG_CONF.unlink()
     except OSError:
@@ -143,9 +165,15 @@ async def _wg_stop() -> None:
 
 async def _wg_start(wg_text: str) -> bool:
     await _ensure_run_dir()
+    # Fresh log per connection attempt.
+    try:
+        WG_LOG.unlink()
+    except OSError:
+        pass
     WG_CONF.write_text(wg_text)
     os.chmod(WG_CONF, 0o600)
-    rc, _, err = await _run_priv("wg-quick", "up", str(WG_CONF))
+    rc, out, err = await _run_priv("wg-quick", "up", str(WG_CONF))
+    _append_wg_log(f"$ wg-quick up (rc={rc})\n{out}{err}")
     if rc != 0:
         logger.error("wg-quick up failed: %s", err)
         return False
@@ -239,8 +267,12 @@ async def get_logs(config: VPNConfig, tail_lines: int = 500) -> str:
             lines = lines[-tail_lines:]
         return "\n".join(lines)
 
-    if protocol == "wireguard" or await _wg_iface_exists():
+    if protocol == "wireguard" or await _wg_iface_exists() or WG_LOG.exists():
         sections: list[str] = []
+        try:
+            sections.append(f"--- {WG_LOG.name} ---\n{WG_LOG.read_text(errors='ignore')}")
+        except OSError:
+            sections.append("(no wg-quick log yet)")
         rc, out, _ = await _run_priv("wg", "show", WG_IFACE)
         sections.append(f"$ wg show {WG_IFACE}\n{out if rc == 0 else '(interface not up)'}")
         rc, out, _ = await _run("ip", "addr", "show", WG_IFACE)
