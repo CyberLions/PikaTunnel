@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1/routes", tags=["routes"])
 
 CSV_FIELDS = [
     "name", "host", "path", "destination", "port",
-    "ssl_enabled", "ssl_cert_path", "ssl_key_path",
+    "ssl_enabled", "ssl_cert_name", "ssl_cert_path", "ssl_key_path",
     "enabled", "groups",
     "k8s_ingress_enabled", "k8s_cloudflare_proxied",
     "k8s_cert_manager_enabled", "k8s_cluster_issuer",
@@ -55,6 +55,7 @@ def _route_to_row(r: ProxyRoute) -> dict:
         "destination": r.destination,
         "port": r.port,
         "ssl_enabled": _bool_to_cell(r.ssl_enabled),
+        "ssl_cert_name": r.ssl_cert_name or "",
         "ssl_cert_path": r.ssl_cert_path or "",
         "ssl_key_path": r.ssl_key_path or "",
         "enabled": _bool_to_cell(r.enabled),
@@ -88,13 +89,19 @@ def _row_to_route_fields(row: dict) -> dict:
     annotations_raw = s("k8s_custom_annotations")
     annotations = json.loads(annotations_raw) if annotations_raw else None
 
+    cert_name = s("ssl_cert_name") or None
+    # If a named cert is referenced, enable SSL automatically unless explicitly set.
+    ssl_cell = row.get("ssl_enabled")
+    ssl_enabled = _cell_to_bool(ssl_cell, default=bool(cert_name)) if ssl_cell not in (None, "") else bool(cert_name)
+
     return {
         "name": name,
         "host": host,
         "path": s("path") or "/",
         "destination": destination,
         "port": port,
-        "ssl_enabled": _cell_to_bool(row.get("ssl_enabled")),
+        "ssl_enabled": ssl_enabled,
+        "ssl_cert_name": cert_name,
         "ssl_cert_path": s("ssl_cert_path") or None,
         "ssl_key_path": s("ssl_key_path") or None,
         "enabled": _cell_to_bool(row.get("enabled"), default=True),

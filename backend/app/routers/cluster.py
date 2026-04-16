@@ -81,3 +81,9 @@ async def clear_credentials(db: AsyncSession = Depends(get_db), user: dict = Dep
     settings.k8s_ca_cert = None
     await db.commit()
     return {"message": "Credentials cleared"}
+
+
+@router.post("/sync-service-ports")
+async def sync_service_ports_endpoint(db: AsyncSession = Depends(get_db), user: dict = Depends(require_admin)):
+    from app.services.k8s_service import sync_service_ports
+    return await sync_service_ports(db)

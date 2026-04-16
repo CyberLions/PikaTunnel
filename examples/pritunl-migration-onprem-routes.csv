@@ -1,0 +1,11 @@
+name,host,path,destination,port,ssl_enabled,ssl_cert_name,ssl_cert_path,ssl_key_path,enabled,groups,k8s_ingress_enabled,k8s_cloudflare_proxied,k8s_cert_manager_enabled,k8s_cluster_issuer,k8s_authentik_enabled,k8s_proxy_body_size,k8s_proxy_read_timeout,k8s_proxy_send_timeout,k8s_proxy_connect_timeout,k8s_custom_annotations
+openstackvnc-onprem,openstackvnc.psuccso.org,/,10.0.103.2,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+fleet-cyberforce-1,fleet-cyberforce-1.psuccso.org,/,10.0.103.2,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+kibana-cyberforce-1,kibana-cyberforce-1.psuccso.org,/,10.0.103.2,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+elastic-cyberforce-1,elastic-cyberforce-1.psuccso.org,/,10.0.103.2,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+glitch,glitch.psuccso.org,/,10.0.104.80,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+openstackspice-onprem,openstackspice.psuccso.org,/,10.0.103.2,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+sillyctf-wildcard,*.sillyctf.psuccso.org,/,10.0.103.2,80,true,wild-sillyctf-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+kibana-wicked6-onprem,kibana-wicked6.psuccso.org,/,10.0.103.2,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+elastic-wicked6-onprem,elastic-wicked6.psuccso.org,/,10.0.103.2,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,
+fleet-wicked6-onprem,fleet-wicked6.psuccso.org,/,10.0.103.2,80,true,wild-psuccso-org-tls,,,true,,false,,false,,false,,,,,

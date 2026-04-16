@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import NginxConfig from "./pages/NginxConfig";
 import Login from "./pages/Login";
 import ClusterSettings from "./pages/ClusterSettings";
+import Certs from "./pages/Certs";
 
 export default function App() {
   return (
@@ -40,6 +41,14 @@ export default function App() {
               element={
                 <ProtectedRoute adminOnly>
                   <Auth />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/certs"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Certs />
                 </ProtectedRoute>
               }
             />

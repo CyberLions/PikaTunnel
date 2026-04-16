@@ -1,23 +1,63 @@
 import asyncio
 import logging
+import os
 from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import ProxyRoute, StreamRoute
+from app.models import ProxyRoute, StreamRoute, TLSCertificate
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+TLS_DIR = Path("/var/run/pikatunnel/tls")
 
-def _generate_http_config(routes: list[ProxyRoute]) -> str:
+
+async def _materialize_certs(db: AsyncSession) -> dict[str, tuple[str, str]]:
+    """Write all uploaded TLS certs to disk; return name -> (cert_path, key_path)."""
+    TLS_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(TLS_DIR, 0o700)
+    except OSError:
+        pass
+
+    result = await db.execute(select(TLSCertificate))
+    certs = result.scalars().all()
+    mapping: dict[str, tuple[str, str]] = {}
+    for c in certs:
+        crt = TLS_DIR / f"{c.name}.crt"
+        key = TLS_DIR / f"{c.name}.key"
+        crt.write_text(c.cert_pem)
+        key.write_text(c.key_pem)
+        try:
+            os.chmod(crt, 0o644)
+            os.chmod(key, 0o600)
+        except OSError:
+            pass
+        mapping[c.name] = (str(crt), str(key))
+    return mapping
+
+
+def _resolve_cert_paths(route: ProxyRoute, cert_map: dict[str, tuple[str, str]]) -> tuple[str, str] | None:
+    """Return (cert_path, key_path) for this route if it can do TLS, else None."""
+    if not route.ssl_enabled:
+        return None
+    if route.ssl_cert_name and route.ssl_cert_name in cert_map:
+        return cert_map[route.ssl_cert_name]
+    if route.ssl_cert_path and route.ssl_key_path:
+        return (route.ssl_cert_path, route.ssl_key_path)
+    return None
+
+
+def _generate_http_config(routes: list[ProxyRoute], cert_map: dict[str, tuple[str, str]]) -> str:
     server_blocks: dict[str, dict] = {}
 
     for route in routes:
         if route.host not in server_blocks:
             server_blocks[route.host] = {"locations": [], "ssl": None}
         server_blocks[route.host]["locations"].append(route)
-        if route.ssl_enabled and route.ssl_cert_path and route.ssl_key_path:
-            server_blocks[route.host]["ssl"] = route
+        resolved = _resolve_cert_paths(route, cert_map)
+        if resolved and server_blocks[route.host]["ssl"] is None:
+            server_blocks[route.host]["ssl"] = resolved
 
     default_server = """    server {
         listen 80 default_server;
@@ -32,11 +72,11 @@ def _generate_http_config(routes: list[ProxyRoute]) -> str:
     for host, data in server_blocks.items():
         ssl_lines = ""
         if data["ssl"]:
-            r = data["ssl"]
+            cert_path, key_path = data["ssl"]
             ssl_lines = f"""
         listen 443 ssl;
-        ssl_certificate {r.ssl_cert_path};
-        ssl_certificate_key {r.ssl_key_path};"""
+        ssl_certificate {cert_path};
+        ssl_certificate_key {key_path};"""
 
         location_blocks = []
         for route in data["locations"]:
@@ -111,7 +151,9 @@ async def generate_and_write(db: AsyncSession) -> tuple[str, str]:
     stream_result = await db.execute(select(StreamRoute).where(StreamRoute.enabled == True))
     stream_routes = list(stream_result.scalars().all())
 
-    http_config = _generate_http_config(proxy_routes)
+    cert_map = await _materialize_certs(db)
+
+    http_config = _generate_http_config(proxy_routes, cert_map)
     stream_config = _generate_stream_config(stream_routes)
 
     try:

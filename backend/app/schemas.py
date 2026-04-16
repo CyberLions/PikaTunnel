@@ -11,6 +11,7 @@ class ProxyRouteCreate(BaseModel):
     destination: str
     port: int = 80
     ssl_enabled: bool = False
+    ssl_cert_name: str | None = None
     ssl_cert_path: str | None = None
     ssl_key_path: str | None = None
     enabled: bool = True
@@ -34,6 +35,7 @@ class ProxyRouteUpdate(BaseModel):
     destination: str | None = None
     port: int | None = None
     ssl_enabled: bool | None = None
+    ssl_cert_name: str | None = None
     ssl_cert_path: str | None = None
     ssl_key_path: str | None = None
     enabled: bool | None = None
@@ -60,6 +62,7 @@ class ProxyRouteResponse(BaseModel):
     destination: str
     port: int
     ssl_enabled: bool
+    ssl_cert_name: str | None
     ssl_cert_path: str | None
     ssl_key_path: str | None
     enabled: bool
@@ -120,6 +123,7 @@ class VPNConfigCreate(BaseModel):
     name: str
     vpn_type: str = "openvpn"
     enabled: bool = False
+    autostart: bool = False
     config_data: dict = {}
 
 
@@ -127,6 +131,7 @@ class VPNConfigUpdate(BaseModel):
     name: str | None = None
     vpn_type: str | None = None
     enabled: bool | None = None
+    autostart: bool | None = None
     config_data: dict | None = None
 
 
@@ -137,6 +142,7 @@ class VPNConfigResponse(BaseModel):
     name: str
     vpn_type: str
     enabled: bool
+    autostart: bool = False
     config_data: dict
     status: str
     created_at: datetime
@@ -228,6 +234,7 @@ class ClusterSettingsUpdate(BaseModel):
     default_cloudflare_proxied: bool | None = None
     backend_service_name: str | None = None
     backend_service_port: int | None = None
+    k8s_loadbalancer_service_name: str | None = None
     authentik_outpost_url: str | None = None
     authentik_signin_url: str | None = None
     authentik_response_headers: str | None = None
@@ -246,12 +253,50 @@ class ClusterSettingsResponse(BaseModel):
     default_cloudflare_proxied: bool
     backend_service_name: str
     backend_service_port: int
+    k8s_loadbalancer_service_name: str | None = None
     authentik_outpost_url: str | None
     authentik_signin_url: str | None
     authentik_response_headers: str
     authentik_auth_snippet: str | None
     has_token: bool = False
     has_ca_cert: bool = False
+
+
+class TLSCertificateCreate(BaseModel):
+    name: str
+    cert_pem: str
+    key_pem: str
+    description: str = ""
+
+
+class TLSCertificateUpdate(BaseModel):
+    cert_pem: str | None = None
+    key_pem: str | None = None
+    description: str | None = None
+
+
+class TLSCertificateResponse(BaseModel):
+    """Response excludes key_pem — private keys are never returned over the API."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    cert_pem: str
+    description: str
+    has_key: bool = True
+    created_at: datetime
+    updated_at: datetime
+
+
+class TLSCertificateSummary(BaseModel):
+    """Minimal info used for list/select UIs (no cert body)."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    description: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class NginxConfigResponse(BaseModel):

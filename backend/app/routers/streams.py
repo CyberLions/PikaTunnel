@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models import StreamRoute, ProtocolType
 from app.schemas import StreamRouteCreate, StreamRouteUpdate, StreamRouteResponse
 from app.services import nginx_config
+from app.services.k8s_service import sync_service_ports
 from app.services.oidc import get_current_user, user_has_group
 
 router = APIRouter(prefix="/api/v1/streams", tags=["streams"])
@@ -103,6 +104,10 @@ async def create_stream(data: StreamRouteCreate, db: AsyncSession = Depends(get_
         await nginx_config.generate_and_reload(db)
     except Exception:
         pass
+    try:
+        await sync_service_ports(db)
+    except Exception:
+        pass
     return route
 
 
@@ -127,6 +132,10 @@ async def update_stream(stream_id: uuid.UUID, data: StreamRouteUpdate, db: Async
         await nginx_config.generate_and_reload(db)
     except Exception:
         pass
+    try:
+        await sync_service_ports(db)
+    except Exception:
+        pass
     return route
 
 
@@ -139,6 +148,10 @@ async def delete_stream(stream_id: uuid.UUID, db: AsyncSession = Depends(get_db)
     await db.commit()
     try:
         await nginx_config.generate_and_reload(db)
+    except Exception:
+        pass
+    try:
+        await sync_service_ports(db)
     except Exception:
         pass
 
@@ -211,6 +224,10 @@ async def import_streams_csv(
 
     try:
         await nginx_config.generate_and_reload(db)
+    except Exception:
+        pass
+    try:
+        await sync_service_ports(db)
     except Exception:
         pass
 

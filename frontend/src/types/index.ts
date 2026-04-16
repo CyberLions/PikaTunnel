@@ -6,6 +6,7 @@ export interface ProxyRoute {
   destination: string;
   port: number;
   ssl_enabled: boolean;
+  ssl_cert_name: string | null;
   ssl_cert_path: string | null;
   ssl_key_path: string | null;
   enabled: boolean;
@@ -43,10 +44,24 @@ export interface VPNConfig {
   name: string;
   vpn_type: string;
   enabled: boolean;
+  autostart: boolean;
   config_data: Record<string, unknown>;
   status: "disconnected" | "connecting" | "connected" | "error";
   created_at: string;
   updated_at: string;
+}
+
+export interface TLSCertificateSummary {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TLSCertificate extends TLSCertificateSummary {
+  cert_pem: string;
+  has_key: boolean;
 }
 
 export interface OIDCProvider {

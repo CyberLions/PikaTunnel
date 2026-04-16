@@ -20,6 +20,7 @@ type FormData = {
   destination: string;
   port: string;
   ssl_enabled: boolean;
+  ssl_cert_name: string;
   ssl_cert_path: string;
   ssl_key_path: string;
   enabled: boolean;
@@ -42,6 +43,7 @@ const emptyForm: FormData = {
   destination: "",
   port: "80",
   ssl_enabled: false,
+  ssl_cert_name: "",
   ssl_cert_path: "",
   ssl_key_path: "",
   enabled: true,
@@ -129,6 +131,7 @@ export default function Routes() {
       destination: route.destination,
       port: String(route.port),
       ssl_enabled: route.ssl_enabled,
+      ssl_cert_name: route.ssl_cert_name || "",
       ssl_cert_path: route.ssl_cert_path || "",
       ssl_key_path: route.ssl_key_path || "",
       enabled: route.enabled,
@@ -156,7 +159,8 @@ export default function Routes() {
         path: form.path,
         destination: form.destination,
         port: parseInt(form.port),
-        ssl_enabled: form.ssl_enabled,
+        ssl_enabled: form.ssl_enabled || !!form.ssl_cert_name,
+        ssl_cert_name: form.ssl_cert_name || null,
         ssl_cert_path: form.ssl_cert_path || null,
         ssl_key_path: form.ssl_key_path || null,
         enabled: form.enabled,
@@ -339,7 +343,19 @@ export default function Routes() {
               Enabled
             </label>
           </div>
-          {form.ssl_enabled && (
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Uploaded Cert Name (optional)</label>
+            <input
+              className="input-field"
+              placeholder="e.g. wild-psuccso-org-tls"
+              value={form.ssl_cert_name}
+              onChange={(e) => setForm({ ...form, ssl_cert_name: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-stone-600">
+              Reference a cert uploaded under <code>TLS Certificates</code>. Leave empty to use path fields below (or no TLS).
+            </p>
+          </div>
+          {form.ssl_enabled && !form.ssl_cert_name && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-stone-300">SSL Cert Path</label>

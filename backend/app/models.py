@@ -25,6 +25,7 @@ class ProxyRoute(Base):
     destination: Mapped[str] = mapped_column(String(255), nullable=False)
     port: Mapped[int] = mapped_column(Integer, default=80)
     ssl_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    ssl_cert_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ssl_cert_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     ssl_key_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -74,6 +75,7 @@ class VPNConfig(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     vpn_type: Mapped[str] = mapped_column(String(50), default="openvpn")
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    autostart: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     config_data: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(50), default="disconnected")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -98,10 +100,27 @@ class ClusterSettings(Base):
     default_cloudflare_proxied: Mapped[bool] = mapped_column(Boolean, default=False)
     backend_service_name: Mapped[str] = mapped_column(String(255), default="pikatunnel")
     backend_service_port: Mapped[int] = mapped_column(Integer, default=80)
+    k8s_loadbalancer_service_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     authentik_outpost_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     authentik_signin_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     authentik_response_headers: Mapped[str] = mapped_column(Text, default="Set-Cookie,X-authentik-username,X-authentik-groups,X-authentik-email,X-authentik-name,X-authentik-uid")
     authentik_auth_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class TLSCertificate(Base):
+    __tablename__ = "tls_certificates"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    cert_pem: Mapped[str] = mapped_column(Text, nullable=False)
+    key_pem: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

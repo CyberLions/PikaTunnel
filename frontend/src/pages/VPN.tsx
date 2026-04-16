@@ -12,6 +12,7 @@ type FormData = {
   name: string;
   vpn_type: string;
   enabled: boolean;
+  autostart: boolean;
   ovpn_config: string;
   wg_config: string;
 };
@@ -20,6 +21,7 @@ const emptyForm: FormData = {
   name: "",
   vpn_type: "openvpn",
   enabled: true,
+  autostart: false,
   ovpn_config: "",
   wg_config: "",
 };
@@ -73,6 +75,7 @@ export default function VPN() {
       name: vpn.name,
       vpn_type: vpn.vpn_type,
       enabled: vpn.enabled,
+      autostart: vpn.autostart ?? false,
       ovpn_config: (vpn.config_data?.ovpn_config as string) || "",
       wg_config: (vpn.config_data?.wg_config as string) || "",
     });
@@ -93,6 +96,7 @@ export default function VPN() {
         name: form.name,
         vpn_type: form.vpn_type,
         enabled: form.enabled,
+        autostart: form.autostart,
         config_data,
       };
       if (editing) {
@@ -282,10 +286,16 @@ export default function VPN() {
               <option value="wireguard">WireGuard</option>
             </select>
           </div>
-          <label className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer">
-            <input type="checkbox" className="rounded border-stone-600 bg-neutral-900 text-orange-500 focus:ring-orange-500/50" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
-            Enabled
-          </label>
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer">
+              <input type="checkbox" className="rounded border-stone-600 bg-neutral-900 text-orange-500 focus:ring-orange-500/50" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
+              Enabled
+            </label>
+            <label className="flex items-center gap-2 text-sm text-stone-300 cursor-pointer" title="Connect automatically when the backend starts">
+              <input type="checkbox" className="rounded border-stone-600 bg-neutral-900 text-orange-500 focus:ring-orange-500/50" checked={form.autostart} onChange={(e) => setForm({ ...form, autostart: e.target.checked })} />
+              Autostart on boot
+            </label>
+          </div>
           {form.vpn_type === "wireguard" ? (
             <div>
               <div className="mb-1.5 flex items-center justify-between">
