@@ -88,6 +88,11 @@ export default function NginxConfig() {
               <StatusBadge status={status.config_valid ? "enabled" : "error"} />
             </div>
           </div>
+          {!status.config_valid && status.config_error && (
+            <pre className="mt-4 max-h-48 overflow-auto rounded border border-red-800/40 bg-red-950/30 p-3 text-xs font-mono text-red-300 whitespace-pre-wrap">
+              {status.config_error}
+            </pre>
+          )}
         </div>
       )}
 

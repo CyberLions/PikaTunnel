@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -22,38 +23,74 @@ _ADDITIVE_COLUMNS: list[str] = [
 ]
 
 
-async def autostart_vpns() -> None:
-    """Start any VPN config flagged enabled + autostart after boot."""
+# Arbitrary key; chosen so it won't collide with other advisory locks in the app.
+_AUTOSTART_LOCK_ID = 918_293_841
+
+
+async def _reserve_autostart_target() -> "uuid.UUID | None":  # type: ignore[name-defined]
+    """Atomically pick (and mark 'connecting') exactly one VPN to autostart.
+
+    Returns the target's id, or None if there's nothing to start or another
+    worker already reserved it. Uses a transactional advisory lock so multiple
+    uvicorn workers can't race into autostart() in parallel.
+    """
     from sqlalchemy import select
+    from app.database import async_session
+    from app.models import VPNConfig
+
+    async with async_session() as db:
+        async with db.begin():
+            # Blocking lock; released automatically at transaction end.
+            await db.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": _AUTOSTART_LOCK_ID})
+
+            result = await db.execute(
+                select(VPNConfig).where(VPNConfig.enabled == True, VPNConfig.autostart == True)  # noqa: E712
+            )
+            configs = list(result.scalars().all())
+            if not configs:
+                return None
+
+            target = configs[0]
+            if len(configs) > 1:
+                names = ", ".join(c.name for c in configs)
+                logger.warning("Multiple VPN configs marked autostart (%s); only starting %s", names, target.name)
+
+            # If another worker in a previous run already flipped status,
+            # don't start a second one that would _stop_all() the first.
+            if target.status in ("connecting", "connected"):
+                logger.info("Autostart skipped — '%s' already in state %s", target.name, target.status)
+                return None
+
+            target.status = "connecting"
+            db.add(target)
+            # commit happens at end of db.begin() — lock released, flag persisted
+            return target.id
+
+
+async def autostart_vpns() -> None:
+    """Pick one autostart target and connect it. Safe to run from multiple workers."""
     from app.database import async_session
     from app.models import VPNConfig
     from app.services import vpn_manager
 
-    async with async_session() as db:
-        result = await db.execute(
-            select(VPNConfig).where(VPNConfig.enabled == True, VPNConfig.autostart == True)  # noqa: E712
-        )
-        configs = list(result.scalars().all())
-
-    if not configs:
+    try:
+        target_id = await _reserve_autostart_target()
+    except Exception as e:
+        logger.exception("Autostart reservation failed: %s", e)
+        return
+    if target_id is None:
         return
 
-    # Only one VPN can run per container; if multiple are flagged, warn and use the first.
-    if len(configs) > 1:
-        names = ", ".join(c.name for c in configs)
-        logger.warning("Multiple VPN configs marked autostart (%s); only starting %s", names, configs[0].name)
-
-    target = configs[0]
-    logger.info("Autostarting VPN '%s'", target.name)
     async with async_session() as db:
-        attached = await db.get(VPNConfig, target.id)
+        attached = await db.get(VPNConfig, target_id)
         if not attached:
             return
+        logger.info("Autostarting VPN '%s'", attached.name)
         try:
             status = await vpn_manager.connect(attached, db)
-            logger.info("Autostart result for '%s': %s", target.name, status)
+            logger.info("Autostart result for '%s': %s", attached.name, status)
         except Exception as e:
-            logger.exception("Autostart failed for '%s': %s", target.name, e)
+            logger.exception("Autostart failed for '%s': %s", attached.name, e)
 
 
 async def ensure_database_schema() -> None:
@@ -74,10 +111,10 @@ async def ensure_database_schema() -> None:
 async def lifespan(app: FastAPI):
     logger.info("Starting pikatunnel (env=%s)", settings.ENVIRONMENT)
     await ensure_database_schema()
-    try:
-        await autostart_vpns()
-    except Exception as e:
-        logger.exception("VPN autostart raised: %s", e)
+    # Fire-and-forget: openvpn's --daemon init can block for seconds on slow
+    # upstreams; running it inside lifespan would stall the HTTP server.
+    task = asyncio.create_task(autostart_vpns())
+    app.state.autostart_task = task  # keep a ref so it doesn't get GC'd
     yield
     await engine.dispose()
 

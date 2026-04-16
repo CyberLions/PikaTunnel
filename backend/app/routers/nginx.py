@@ -28,4 +28,9 @@ async def get_config(user: dict = Depends(require_admin)):
 @router.get("/status", response_model=NginxStatusResponse)
 async def status(user: dict = Depends(require_admin)):
     info = await nginx_config.get_nginx_status()
-    return NginxStatusResponse(running=info.get("running", False), pid=info.get("pid"))
+    return NginxStatusResponse(
+        running=info.get("running", False),
+        pid=info.get("pid"),
+        config_valid=info.get("config_valid", False),
+        config_error=info.get("config_error"),
+    )

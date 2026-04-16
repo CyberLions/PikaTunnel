@@ -197,14 +197,15 @@ async def get_nginx_status() -> dict:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await proc.communicate()
+        _stdout, stderr = await proc.communicate()
         config_ok = proc.returncode == 0
+        config_error = None if config_ok else stderr.decode(errors="ignore").strip()
     except FileNotFoundError:
-        return {"running": False, "pid": None}
+        return {"running": False, "pid": None, "config_valid": False, "config_error": "nginx binary not found"}
 
     try:
         pid_text = Path("/run/nginx.pid").read_text().strip()
         pid = int(pid_text)
-        return {"running": True, "pid": pid, "config_valid": config_ok}
+        return {"running": True, "pid": pid, "config_valid": config_ok, "config_error": config_error}
     except (FileNotFoundError, ValueError):
-        return {"running": False, "pid": None, "config_valid": config_ok}
+        return {"running": False, "pid": None, "config_valid": config_ok, "config_error": config_error}

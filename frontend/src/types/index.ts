@@ -81,7 +81,9 @@ export interface OIDCProvider {
 
 export interface NginxStatus {
   running: boolean;
+  pid?: number | null;
   config_valid: boolean;
+  config_error?: string | null;
 }
 
 export interface HealthStatus {

@@ -307,3 +307,5 @@ class NginxConfigResponse(BaseModel):
 class NginxStatusResponse(BaseModel):
     running: bool
     pid: int | None = None
+    config_valid: bool = False
+    config_error: str | None = None
