@@ -96,6 +96,10 @@ If PikaTunnel sits behind a reverse proxy or ingress that terminates TLS, set `P
 PUBLIC_URL=https://pikatunnel.example.com
 ```
 
+## Kubernetes
+
+PikaTunnel can manage `Ingress` resources per proxy route and sync a LoadBalancer `Service`'s ports. See [K8S_SETUP.md](K8S_SETUP.md) for copy-pastable `ServiceAccount`, `Role`, and `RoleBinding` manifests.
+
 ## Project Structure
 
 ```
