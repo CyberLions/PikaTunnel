@@ -131,6 +131,35 @@ async def vpn_watcher() -> None:
         await asyncio.sleep(_WATCHER_TICK_SECS)
 
 
+async def _bootstrap_nginx() -> None:
+    """Regenerate nginx configs from DB on startup and reload.
+
+    Run once per container boot so proxy/stream routes and mounted TLS certs
+    are reflected immediately, without waiting for a user-triggered change.
+    One uvicorn worker wins an advisory try-lock and does the work; the rest
+    skip to avoid duplicate reloads.
+    """
+    from app.database import async_session
+    from app.services import nginx_config
+
+    async with async_session() as db:
+        got_lock = (await db.execute(
+            text("SELECT pg_try_advisory_lock(hashtext(:name))"),
+            {"name": "pikatunnel_nginx_bootstrap"},
+        )).scalar()
+        if not got_lock:
+            return
+        try:
+            await nginx_config.generate_and_reload(db)
+        except Exception as e:
+            logger.exception("nginx bootstrap reload failed: %s", e)
+        finally:
+            await db.execute(
+                text("SELECT pg_advisory_unlock(hashtext(:name))"),
+                {"name": "pikatunnel_nginx_bootstrap"},
+            )
+
+
 async def ensure_database_schema() -> None:
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
@@ -149,6 +178,7 @@ async def ensure_database_schema() -> None:
 async def lifespan(app: FastAPI):
     logger.info("Starting pikatunnel (env=%s)", settings.ENVIRONMENT)
     await ensure_database_schema()
+    await _bootstrap_nginx()
     # Fire-and-forget: the watcher does the initial autostart on its first
     # iteration, then polls every 30s to reconnect on unintentional drops.
     # Multiple uvicorn workers can all run this safely — a PG advisory lock
