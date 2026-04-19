@@ -97,6 +97,31 @@ roleRef:
 
 Set `serviceAccountName: pikatunnel` on the PikaTunnel pod spec, then enable in-cluster mode in **Cluster Settings** (or set `k8s_in_cluster=true`). No token/CA is needed when running in-cluster.
 
+## Pod securityContext (required for VPN tunnels)
+
+PikaTunnel brings up WireGuard / OpenVPN interfaces inside the pod, which requires elevated networking privileges. The pod spec must include:
+
+```yaml
+securityContext:
+  capabilities:
+    add: ["NET_ADMIN"]
+  sysctls:
+    - name: net.ipv4.conf.all.src_valid_mark
+      value: "1"
+```
+
+`NET_ADMIN` lets the pod create tunnel interfaces and manage routes. The `src_valid_mark` sysctl is required by `wg-quick` for default-route (`AllowedIPs = 0.0.0.0/0`) configs.
+
+Because `net.ipv4.conf.all.src_valid_mark` is classified as an "unsafe" sysctl by Kubernetes, the kubelet on each node that runs PikaTunnel must allow it:
+
+```
+--allowed-unsafe-sysctls=net.ipv4.conf.all.src_valid_mark
+```
+
+If you can't modify kubelet flags, use `privileged: true` on the container instead (this also implies `NET_ADMIN` and allows the sysctl, but grants broader privileges).
+
+The `wireguard` kernel module must be loaded on the node (`lsmod | grep wireguard`). On kernels ≥ 5.6 it is built in.
+
 ## Out-of-cluster token
 
 If PikaTunnel runs outside the cluster, create the same `ServiceAccount` / `Role` / `RoleBinding`, then generate a long-lived token:

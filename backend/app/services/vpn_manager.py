@@ -50,7 +50,7 @@ async def _ensure_run_dir() -> None:
     if RUN_DIR.exists() and os.access(RUN_DIR, os.W_OK):
         return
     try:
-        await _ensure_run_dir()
+        RUN_DIR.mkdir(parents=True, exist_ok=True)
         return
     except PermissionError:
         pass
@@ -218,6 +218,11 @@ async def _wg_start(wg_text: str) -> bool:
         WG_LOG.unlink()
     except OSError:
         pass
+    # Strip DNS — wg-quick shells out to resolvconf, which isn't installed
+    # and we don't want the tunnel mutating the pod's /etc/resolv.conf anyway.
+    wg_text = "\n".join(
+        l for l in wg_text.splitlines() if not l.strip().lower().startswith("dns")
+    )
     WG_CONF.write_text(wg_text)
     os.chmod(WG_CONF, 0o600)
     rc, out, err = await _run_priv("wg-quick", "up", str(WG_CONF))
