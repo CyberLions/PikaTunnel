@@ -128,11 +128,28 @@ def _generate_http_config(routes: list[ProxyRoute], cert_map: dict[str, tuple[st
 
         location_blocks = []
         for route in data["locations"]:
-            location_blocks.append(f"""        location {route.path} {{
-            proxy_pass http://{route.destination}:{route.port};
-            proxy_http_version 1.1;
+            extra = []
+            if route.k8s_proxy_body_size:
+                extra.append(f"client_max_body_size {route.k8s_proxy_body_size};")
+            if route.k8s_proxy_body_size == "0":
+                extra.append("proxy_request_buffering off;")
+                extra.append("proxy_buffering off;")
+            if route.k8s_proxy_connect_timeout:
+                extra.append(f"proxy_connect_timeout {route.k8s_proxy_connect_timeout}s;")
+            if route.k8s_proxy_send_timeout:
+                extra.append(f"proxy_send_timeout {route.k8s_proxy_send_timeout}s;")
+            if route.k8s_proxy_read_timeout:
+                extra.append(f"proxy_read_timeout {route.k8s_proxy_read_timeout}s;")
+
+            upgrade = ""
+            if not route.k8s_proxy_body_size == "0":
+                upgrade = """
             proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
+            proxy_set_header Connection "upgrade";"""
+
+            extra_str = ("\n            " + "\n            ".join(extra) + "\n            ") if extra else ""
+            location_blocks.append(f"""        location {route.path} {{{extra_str}proxy_pass http://{route.destination}:{route.port};
+            proxy_http_version 1.1;{upgrade}
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
