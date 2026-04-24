@@ -111,51 +111,6 @@ async def create_stream(data: StreamRouteCreate, db: AsyncSession = Depends(get_
     return route
 
 
-@router.get("/{stream_id}", response_model=StreamRouteResponse)
-async def get_stream(stream_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    route = await db.get(StreamRoute, stream_id)
-    if not route or not user_has_group(user, route.groups):
-        raise HTTPException(status_code=404, detail="Stream route not found")
-    return route
-
-
-@router.put("/{stream_id}", response_model=StreamRouteResponse)
-async def update_stream(stream_id: uuid.UUID, data: StreamRouteUpdate, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    route = await db.get(StreamRoute, stream_id)
-    if not route or not user_has_group(user, route.groups):
-        raise HTTPException(status_code=404, detail="Stream route not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
-        setattr(route, key, value)
-    await db.commit()
-    await db.refresh(route)
-    try:
-        await nginx_config.generate_and_reload(db)
-    except Exception:
-        pass
-    try:
-        await sync_service_ports(db)
-    except Exception:
-        pass
-    return route
-
-
-@router.delete("/{stream_id}", status_code=204)
-async def delete_stream(stream_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    route = await db.get(StreamRoute, stream_id)
-    if not route or not user_has_group(user, route.groups):
-        raise HTTPException(status_code=404, detail="Stream route not found")
-    await db.delete(route)
-    await db.commit()
-    try:
-        await nginx_config.generate_and_reload(db)
-    except Exception:
-        pass
-    try:
-        await sync_service_ports(db)
-    except Exception:
-        pass
-
-
 @router.get("/export.csv")
 async def export_streams_csv(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     result = await db.execute(select(StreamRoute))
@@ -232,3 +187,48 @@ async def import_streams_csv(
         pass
 
     return {"created": created, "updated": updated, "skipped": skipped, "errors": errors}
+
+
+@router.get("/{stream_id}", response_model=StreamRouteResponse)
+async def get_stream(stream_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    route = await db.get(StreamRoute, stream_id)
+    if not route or not user_has_group(user, route.groups):
+        raise HTTPException(status_code=404, detail="Stream route not found")
+    return route
+
+
+@router.put("/{stream_id}", response_model=StreamRouteResponse)
+async def update_stream(stream_id: uuid.UUID, data: StreamRouteUpdate, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    route = await db.get(StreamRoute, stream_id)
+    if not route or not user_has_group(user, route.groups):
+        raise HTTPException(status_code=404, detail="Stream route not found")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(route, key, value)
+    await db.commit()
+    await db.refresh(route)
+    try:
+        await nginx_config.generate_and_reload(db)
+    except Exception:
+        pass
+    try:
+        await sync_service_ports(db)
+    except Exception:
+        pass
+    return route
+
+
+@router.delete("/{stream_id}", status_code=204)
+async def delete_stream(stream_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    route = await db.get(StreamRoute, stream_id)
+    if not route or not user_has_group(user, route.groups):
+        raise HTTPException(status_code=404, detail="Stream route not found")
+    await db.delete(route)
+    await db.commit()
+    try:
+        await nginx_config.generate_and_reload(db)
+    except Exception:
+        pass
+    try:
+        await sync_service_ports(db)
+    except Exception:
+        pass

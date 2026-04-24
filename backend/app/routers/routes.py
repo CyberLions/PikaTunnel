@@ -161,63 +161,6 @@ async def create_route(data: ProxyRouteCreate, db: AsyncSession = Depends(get_db
     return route
 
 
-@router.get("/{route_id}", response_model=ProxyRouteResponse)
-async def get_route(route_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    route = await db.get(ProxyRoute, route_id)
-    if not route or not user_has_group(user, route.groups):
-        raise HTTPException(status_code=404, detail="Route not found")
-    return route
-
-
-@router.put("/{route_id}", response_model=ProxyRouteResponse)
-async def update_route(route_id: uuid.UUID, data: ProxyRouteUpdate, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    route = await db.get(ProxyRoute, route_id)
-    if not route or not user_has_group(user, route.groups):
-        raise HTTPException(status_code=404, detail="Route not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
-        setattr(route, key, value)
-    await db.commit()
-    await db.refresh(route)
-    try:
-        await nginx_config.generate_and_reload(db)
-    except Exception:
-        pass
-    try:
-        await k8s_ingress.sync_ingress(route, db)
-    except Exception:
-        pass
-    return route
-
-
-@router.delete("/{route_id}", status_code=204)
-async def delete_route(route_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    route = await db.get(ProxyRoute, route_id)
-    if not route or not user_has_group(user, route.groups):
-        raise HTTPException(status_code=404, detail="Route not found")
-    try:
-        await k8s_ingress.delete_ingress(route, db)
-    except Exception:
-        pass
-    await db.delete(route)
-    await db.commit()
-    try:
-        await nginx_config.generate_and_reload(db)
-    except Exception:
-        pass
-
-
-@router.post("/{route_id}/sync-ingress")
-async def sync_route_ingress(route_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    route = await db.get(ProxyRoute, route_id)
-    if not route or not user_has_group(user, route.groups):
-        raise HTTPException(status_code=404, detail="Route not found")
-    try:
-        await k8s_ingress.sync_ingress(route, db)
-        return {"message": f"Ingress synced for {route.name}"}
-    except Exception as e:
-        return {"message": f"Sync failed: {e}"}
-
-
 @router.get("/export.csv")
 async def export_routes_csv(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     result = await db.execute(select(ProxyRoute))
@@ -301,3 +244,60 @@ async def import_routes_csv(
                 pass
 
     return {"created": created, "updated": updated, "skipped": skipped, "errors": errors}
+
+
+@router.get("/{route_id}", response_model=ProxyRouteResponse)
+async def get_route(route_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    route = await db.get(ProxyRoute, route_id)
+    if not route or not user_has_group(user, route.groups):
+        raise HTTPException(status_code=404, detail="Route not found")
+    return route
+
+
+@router.put("/{route_id}", response_model=ProxyRouteResponse)
+async def update_route(route_id: uuid.UUID, data: ProxyRouteUpdate, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    route = await db.get(ProxyRoute, route_id)
+    if not route or not user_has_group(user, route.groups):
+        raise HTTPException(status_code=404, detail="Route not found")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(route, key, value)
+    await db.commit()
+    await db.refresh(route)
+    try:
+        await nginx_config.generate_and_reload(db)
+    except Exception:
+        pass
+    try:
+        await k8s_ingress.sync_ingress(route, db)
+    except Exception:
+        pass
+    return route
+
+
+@router.delete("/{route_id}", status_code=204)
+async def delete_route(route_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    route = await db.get(ProxyRoute, route_id)
+    if not route or not user_has_group(user, route.groups):
+        raise HTTPException(status_code=404, detail="Route not found")
+    try:
+        await k8s_ingress.delete_ingress(route, db)
+    except Exception:
+        pass
+    await db.delete(route)
+    await db.commit()
+    try:
+        await nginx_config.generate_and_reload(db)
+    except Exception:
+        pass
+
+
+@router.post("/{route_id}/sync-ingress")
+async def sync_route_ingress(route_id: uuid.UUID, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    route = await db.get(ProxyRoute, route_id)
+    if not route or not user_has_group(user, route.groups):
+        raise HTTPException(status_code=404, detail="Route not found")
+    try:
+        await k8s_ingress.sync_ingress(route, db)
+        return {"message": f"Ingress synced for {route.name}"}
+    except Exception as e:
+        return {"message": f"Sync failed: {e}"}

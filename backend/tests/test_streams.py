@@ -50,6 +50,15 @@ class TestStreamCRUD:
         assert resp.status_code == 201
         assert resp.json()["protocol"] == "udp"
 
+    async def test_export_streams_csv(self, client, admin_headers):
+        await client.post("/api/v1/streams", json=STREAM_PAYLOAD, headers=admin_headers)
+
+        resp = await client.get("/api/v1/streams/export.csv", headers=admin_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "test-stream" in resp.text
+
 
 class TestStreamGroupFiltering:
     async def test_user_sees_own_group_streams(self, client, admin_headers, user_headers):

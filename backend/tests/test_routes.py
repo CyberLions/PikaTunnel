@@ -78,6 +78,15 @@ class TestRouteCRUD:
         assert data["k8s_cert_manager_enabled"] is True
         assert data["k8s_proxy_body_size"] == "50m"
 
+    async def test_export_routes_csv(self, client, admin_headers):
+        await client.post("/api/v1/routes", json=ROUTE_PAYLOAD, headers=admin_headers)
+
+        resp = await client.get("/api/v1/routes/export.csv", headers=admin_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "test-route" in resp.text
+
 
 class TestRouteGroupFiltering:
     async def test_admin_sees_all_routes(self, client, admin_headers):
