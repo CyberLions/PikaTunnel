@@ -37,6 +37,7 @@ type FormData = {
   k8s_proxy_read_timeout: string;
   k8s_proxy_send_timeout: string;
   k8s_proxy_connect_timeout: string;
+  proxy_host_header: string;
 };
 
 const emptyForm: FormData = {
@@ -60,6 +61,7 @@ const emptyForm: FormData = {
   k8s_proxy_read_timeout: "",
   k8s_proxy_send_timeout: "",
   k8s_proxy_connect_timeout: "",
+  proxy_host_header: "",
 };
 
 export default function Routes() {
@@ -183,6 +185,7 @@ export default function Routes() {
       k8s_proxy_read_timeout: route.k8s_proxy_read_timeout || "",
       k8s_proxy_send_timeout: route.k8s_proxy_send_timeout || "",
       k8s_proxy_connect_timeout: route.k8s_proxy_connect_timeout || "",
+      proxy_host_header: route.proxy_host_header || "",
     });
     setModalOpen(true);
   }
@@ -213,6 +216,7 @@ export default function Routes() {
         k8s_proxy_send_timeout: form.k8s_proxy_send_timeout || null,
         k8s_proxy_connect_timeout: form.k8s_proxy_connect_timeout || null,
         k8s_custom_annotations: null,
+        proxy_host_header: form.proxy_host_header || null,
       };
       if (editing) {
         await updateRoute(editing.id, payload);
@@ -384,6 +388,11 @@ export default function Routes() {
               <label className="mb-1.5 block text-sm font-medium text-stone-300">Port</label>
               <input required type="number" className="input-field" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} />
             </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-stone-300">Host Header Rewrite</label>
+            <input className="input-field" placeholder="Leave blank to pass $host unchanged" value={form.proxy_host_header} onChange={(e) => setForm({ ...form, proxy_host_header: e.target.value })} />
+            <p className="mt-1 text-xs text-stone-600">Override the <code>Host</code> header sent to the backend (e.g. <code>internal.svc.cluster.local</code>).</p>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-stone-300">Groups</label>

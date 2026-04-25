@@ -40,6 +40,7 @@ class ProxyRoute(Base):
     k8s_proxy_send_timeout: Mapped[str | None] = mapped_column(String(50), nullable=True)
     k8s_proxy_connect_timeout: Mapped[str | None] = mapped_column(String(50), nullable=True)
     k8s_custom_annotations: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    proxy_host_header: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

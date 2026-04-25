@@ -147,10 +147,11 @@ def _generate_http_config(routes: list[ProxyRoute], cert_map: dict[str, tuple[st
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";"""
 
+            host_header = route.proxy_host_header if route.proxy_host_header else "$host"
             extra_str = ("\n            " + "\n            ".join(extra) + "\n            ") if extra else ""
             location_blocks.append(f"""        location {route.path} {{{extra_str}proxy_pass http://{route.destination}:{route.port};
             proxy_http_version 1.1;{upgrade}
-            proxy_set_header Host $host;
+            proxy_set_header Host {host_header};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;

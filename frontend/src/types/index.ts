@@ -21,6 +21,7 @@ export interface ProxyRoute {
   k8s_proxy_send_timeout: string | null;
   k8s_proxy_connect_timeout: string | null;
   k8s_custom_annotations: Record<string, string> | null;
+  proxy_host_header: string | null;
   created_at: string;
   updated_at: string;
 }

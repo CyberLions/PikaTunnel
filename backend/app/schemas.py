@@ -26,6 +26,7 @@ class ProxyRouteCreate(BaseModel):
     k8s_proxy_send_timeout: str | None = None
     k8s_proxy_connect_timeout: str | None = None
     k8s_custom_annotations: dict | None = None
+    proxy_host_header: str | None = None
 
 
 class ProxyRouteUpdate(BaseModel):
@@ -50,6 +51,7 @@ class ProxyRouteUpdate(BaseModel):
     k8s_proxy_send_timeout: str | None = None
     k8s_proxy_connect_timeout: str | None = None
     k8s_custom_annotations: dict | None = None
+    proxy_host_header: str | None = None
 
 
 class ProxyRouteResponse(BaseModel):
@@ -77,6 +79,7 @@ class ProxyRouteResponse(BaseModel):
     k8s_proxy_send_timeout: str | None
     k8s_proxy_connect_timeout: str | None
     k8s_custom_annotations: dict | None
+    proxy_host_header: str | None
     created_at: datetime
     updated_at: datetime
 
