@@ -43,6 +43,10 @@ nginx
 
 mkdir -p /var/run/pikatunnel
 
+# Run DB migrations before starting the app
+log "Running database migrations..."
+cd /app && alembic upgrade head
+
 # Start FastAPI backend
 log "Starting uvicorn..."
 exec uvicorn app.main:app \
