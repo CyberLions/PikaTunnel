@@ -45,7 +45,39 @@ mkdir -p /var/run/pikatunnel
 
 # Run DB migrations before starting the app
 log "Running database migrations..."
-cd /app && alembic upgrade head
+cd /app
+
+# If tables already exist but alembic has no version record (pre-alembic deployment),
+# stamp head so upgrade head only runs genuinely new migrations.
+NEEDS_STAMP=$(python3 - <<'EOF'
+import asyncio, sys
+sys.path.insert(0, '/app')
+async def main():
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy import text
+    from app.config import settings
+    engine = create_async_engine(settings.DATABASE_URL)
+    async with engine.connect() as conn:
+        has_version = await conn.scalar(text(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version')"
+        ))
+        if not has_version:
+            has_tables = await conn.scalar(text(
+                "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='proxy_routes')"
+            ))
+            if has_tables:
+                print("stamp")
+                return
+    await engine.dispose()
+asyncio.run(main())
+EOF
+)
+if [ "$NEEDS_STAMP" = "stamp" ]; then
+    log "Existing DB detected — stamping alembic to head before upgrade"
+    alembic stamp head
+fi
+
+alembic upgrade head
 
 # Start FastAPI backend
 log "Starting uvicorn..."
