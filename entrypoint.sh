@@ -48,33 +48,58 @@ log "Running database migrations..."
 cd /app
 
 # If tables already exist but alembic has no version record (pre-alembic deployment),
-# stamp head so upgrade head only runs genuinely new migrations.
-NEEDS_STAMP=$(python3 - <<'EOF'
+# detect which revision the DB is actually at and stamp to that so upgrade head
+# only runs genuinely new migrations.
+STAMP_REV=$(python3 - <<'EOF'
 import asyncio, sys
 sys.path.insert(0, '/app')
+
+async def col_exists(conn, table, col):
+    from sqlalchemy import text
+    return await conn.scalar(text(
+        "SELECT EXISTS(SELECT 1 FROM information_schema.columns "
+        "WHERE table_name=:t AND column_name=:c)"
+    ), {"t": table, "c": col})
+
+async def table_exists(conn, table):
+    from sqlalchemy import text
+    return await conn.scalar(text(
+        "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name=:t)"
+    ), {"t": table})
+
 async def main():
     from sqlalchemy.ext.asyncio import create_async_engine
     from sqlalchemy import text
     from app.config import settings
     engine = create_async_engine(settings.DATABASE_URL)
     async with engine.connect() as conn:
-        has_version = await conn.scalar(text(
-            "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version')"
-        ))
-        if not has_version:
-            has_tables = await conn.scalar(text(
-                "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='proxy_routes')"
-            ))
-            if has_tables:
-                print("stamp")
-                return
+        has_version = await table_exists(conn, "alembic_version")
+        if has_version:
+            return  # alembic already tracking — no stamp needed
+        if not await table_exists(conn, "proxy_routes"):
+            return  # fresh DB — let alembic run from scratch
+
+        # Walk migrations newest-first; stamp at the highest one whose changes are present
+        if await col_exists(conn, "proxy_routes", "proxy_host_header"):
+            print("006")
+        elif await col_exists(conn, "proxy_routes", "ssl_cert_name"):
+            print("005")
+        elif await col_exists(conn, "proxy_routes", "k8s_ingress_enabled"):
+            print("004")
+        elif await table_exists(conn, "cluster_settings"):
+            print("003")
+        elif await col_exists(conn, "proxy_routes", "groups"):
+            print("002")
+        else:
+            print("001")
     await engine.dispose()
+
 asyncio.run(main())
 EOF
 )
-if [ "$NEEDS_STAMP" = "stamp" ]; then
-    log "Existing DB detected — stamping alembic to head before upgrade"
-    alembic stamp head
+if [ -n "$STAMP_REV" ]; then
+    log "Existing DB detected at revision $STAMP_REV — stamping before upgrade"
+    alembic stamp "$STAMP_REV"
 fi
 
 alembic upgrade head
