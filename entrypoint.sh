@@ -112,6 +112,9 @@ fi
 alembic upgrade head
 
 # Start FastAPI backend
+log "Starting tinyproxy..."
+tinyproxy -c /etc/tinyproxy/tinyproxy.conf
+
 log "Starting uvicorn..."
 exec uvicorn app.main:app \
     --host 0.0.0.0 \

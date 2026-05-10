@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     openvpn \
     wireguard-tools \
+    tinyproxy \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -55,6 +56,9 @@ COPY apache/pikatunnel.conf /etc/apache2/sites-available/pikatunnel.conf
 # Copy nginx configs
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 
+# Copy tinyproxy config
+COPY tinyproxy/tinyproxy.conf /etc/tinyproxy/tinyproxy.conf
+
 # Generate default self-signed cert for fallback
 RUN mkdir -p /etc/nginx/ssl && \
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
@@ -71,7 +75,7 @@ RUN mkdir -p /etc/nginx/ssl && \
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 80 3000
+EXPOSE 80 3000 8888
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:3000/api/v1/health || exit 1
