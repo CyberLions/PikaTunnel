@@ -175,6 +175,11 @@ events {{
 include {settings.NGINX_STREAM_CONFIG_PATH};
 
 http {{
+    map $http_upgrade $connection_upgrade {{
+        default upgrade;
+        ''      close;
+    }}
+
     include       /etc/nginx/mime.types;
     default_type  application/octet-stream;
     sendfile        on;
