@@ -141,11 +141,9 @@ def _generate_http_config(routes: list[ProxyRoute], cert_map: dict[str, tuple[st
             if route.k8s_proxy_read_timeout:
                 extra.append(f"proxy_read_timeout {route.k8s_proxy_read_timeout}s;")
 
-            upgrade = ""
-            if not route.k8s_proxy_body_size == "0":
-                upgrade = """
+            upgrade = """
             proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";"""
+            proxy_set_header Connection $connection_upgrade;"""
 
             host_header = route.proxy_host_header if route.proxy_host_header else "$host"
             extra_str = ("\n            " + "\n            ".join(extra) + "\n            ") if extra else ""
